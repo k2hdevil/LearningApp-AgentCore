@@ -5,12 +5,10 @@ frontend:
       commands:
         - nvm install 18
         - nvm use 18
-        - cd webapp
-        - npm ci
+        - cd webapp && npm ci
     build:
       commands:
-        - cd webapp
-        - npm run build
+        - cd webapp && npm run build
   artifacts:
     baseDirectory: webapp/dist
     files:
