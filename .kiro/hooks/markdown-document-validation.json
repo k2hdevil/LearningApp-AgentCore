@@ -4,11 +4,11 @@
     {
       "name": "Markdown Document Validation",
       "trigger": "PostFileSave",
-      "description": "마크다운 문서 생성/변경 저장 시 AWS 공식 문서 기반 교차 검증 및 아키텍처·시스템 다이어그램의 D2 변환을 수행합니다.",
+      "description": "마크다운 문서 생성/변경 저장 시 AWS 공식 문서 기반 교차 검증을 수행합니다.",
       "matcher": "\\.(md|markdown)$",
       "action": {
         "type": "agent",
-        "prompt": "이 마크다운 문서가 생성되거나 변경되었습니다. 다음 검증 작업을 수행하세요:\n\n1. **AWS 관련 내용 교차 검증**: 문서에 AWS 서비스, 기능, 아키텍처 관련 내용이 포함된 경우 AWS 공식 문서(docs.aws.amazon.com), rePost(repost.aws), 또는 Builder Center를 통해 교차 검증하세요. 잘못된 표현, 부정확한 설명, 또는 거짓 정보가 있으면 수정하세요.\n\n2. **다이어그램 D2 변환**: 문서에 아키텍처 다이어그램이나 시스템 다이어그램이 다른 형식(Mermaid, PlantUML, ASCII art, 텍스트 설명 등)으로 작성되어 있다면 D2 언어(https://d2lang.com) 기반의 코드 블록으로 변환하세요. D2 코드 블록은 ```d2 로 시작해야 합니다.\n\n검증 결과를 사용자에게 보고하고, 수정이 필요한 경우 변경 사항을 적용하세요."
+        "prompt": "이 마크다운 문서가 생성되거나 변경되었습니다. 다음 검증 작업을 수행하세요:\n\n1. **AWS 관련 내용 교차 검증**: 문서에 AWS 서비스, 기능, 아키텍처 관련 내용이 포함된 경우 AWS 공식 문서(docs.aws.amazon.com), rePost(repost.aws), 또는 Builder Center를 통해 교차 검증하세요. 잘못된 표현, 부정확한 설명, 또는 거짓 정보가 있으면 수정하세요."
       }
     }
   ]
