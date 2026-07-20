@@ -108,6 +108,12 @@ export const NAVIGATION_TREE = [
         ],
         isNew: true,
       },
+      {
+        id: 'L01-notebook-download',
+        title: '📥 실습 1: AgentCore Jupyter Notebook 다운로드',
+        type: 'download',
+        downloadFile: 'L01-notebook_ko_kr.ipynb',
+      },
     ],
   },
 ];

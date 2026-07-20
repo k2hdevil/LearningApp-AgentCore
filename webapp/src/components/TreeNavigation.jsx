@@ -27,6 +27,7 @@ export function filterTree(nodes, query) {
  * navigationTree 데이터를 Cloudscape SideNavigation items 형식으로 변환한다.
  * - series → section (접을 수 있는 그룹, 기본 확장)
  * - 개별 모듈 → link (href에 모듈 id를 프래그먼트로 사용)
+ * - download 타입 → 외부 링크 (파일 다운로드)
  * - isNew → info 슬롯에 NEW Badge
  * @param {Array} navigationTree - 계층적 내비게이션 트리
  * @returns {Array} SideNavigation items 배열
@@ -35,12 +36,24 @@ export function toSideNavigationItems(navigationTree) {
   return navigationTree.map((series) => ({
     type: 'section',
     text: series.title,
-    items: (series.children || []).map((item) => ({
-      type: 'link',
-      text: item.title,
-      href: `#${item.id}`,
-      info: item.isNew ? <Badge color="blue">NEW</Badge> : undefined,
-    })),
+    items: (series.children || []).map((item) => {
+      // 다운로드 타입: 외부 링크로 처리하여 파일 다운로드 유도
+      if (item.type === 'download') {
+        return {
+          type: 'link',
+          text: item.title,
+          href: `/content/${item.downloadFile}`,
+          external: true,
+          info: item.isNew ? <Badge color="blue">NEW</Badge> : undefined,
+        };
+      }
+      return {
+        type: 'link',
+        text: item.title,
+        href: `#${item.id}`,
+        info: item.isNew ? <Badge color="blue">NEW</Badge> : undefined,
+      };
+    }),
   }));
 }
 
@@ -64,6 +77,10 @@ function TreeNavigation({ navigationTree, activeItemId, onItemSelect }) {
       activeHref={`#${activeItemId}`}
       items={items}
       onFollow={(event) => {
+        // 외부 링크(다운로드)는 기본 동작 허용
+        if (event.detail.external) {
+          return;
+        }
         event.preventDefault();
         onItemSelect(event.detail.href.replace(/^#/, ''));
       }}

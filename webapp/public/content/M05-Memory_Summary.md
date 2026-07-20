@@ -90,54 +90,74 @@ DynamoDB를 사용하면 대화 이력, 세션 상태, 에이전트 체크포인
 #   --key-schema AttributeName=SessionId,KeyType=HASH \
 #   --billing-mode PAY_PER_REQUEST
 
+# AWS SDK 및 LangChain 관련 라이브러리 임포트
 import boto3
+# DynamoDB를 대화 히스토리 저장소로 사용하기 위한 LangChain 통합 모듈
 from langchain_community.chat_message_histories import DynamoDBChatMessageHistory
+# Amazon Bedrock의 LLM을 LangChain에서 사용하기 위한 래퍼(wrapper) 클래스
 from langchain_aws import ChatBedrock
+# 프롬프트 템플릿과 메시지 플레이스홀더(placeholder)를 구성하기 위한 모듈
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+# 체인(chain)에 메시지 히스토리를 자동으로 주입해주는 래퍼
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
 # ─── 1단계: DynamoDB 세션 히스토리 팩토리 ───
+# 세션 ID를 키로 사용하여 DynamoDB에서 대화 기록을 조회하는 팩토리 함수
+# RunnableWithMessageHistory가 내부적으로 이 함수를 호출하여 히스토리를 로드/저장함
 def get_session_history(session_id: str) -> DynamoDBChatMessageHistory:
     """session_id로 DynamoDB에서 대화 히스토리를 가져오는 팩토리 함수"""
     return DynamoDBChatMessageHistory(
-        table_name="AgentChatHistory",
-        session_id=session_id
+        table_name="AgentChatHistory",  # DynamoDB 테이블 이름
+        session_id=session_id           # 파티션 키(partition key)로 사용될 세션 식별자
     )
 
 # ─── 2단계: LLM + 프롬프트 체인 구성 ───
+# Amazon Bedrock에서 Claude 모델을 초기화
 llm = ChatBedrock(
-    model_id="anthropic.claude-sonnet-4-20250514",
-    region_name="us-west-2"
+    model_id="anthropic.claude-sonnet-4-20250514",  # 사용할 모델 ID
+    region_name="us-west-2"                    # Bedrock 엔드포인트(endpoint) 리전
 )
 
+# 프롬프트 템플릿 정의:
+# - system: 에이전트의 역할과 행동 지침을 설정
+# - MessagesPlaceholder: 이전 대화 히스토리가 자동으로 삽입되는 위치
+# - human: 현재 사용자 입력이 들어가는 위치
 prompt = ChatPromptTemplate.from_messages([
     ("system", "당신은 여행 계획을 도와주는 AI 어시스턴트입니다. "
                "이전 대화 내용을 기억하고 일관된 응답을 제공하세요."),
-    MessagesPlaceholder(variable_name="history"),
-    ("human", "{input}")
+    MessagesPlaceholder(variable_name="history"),  # 여기에 과거 대화가 자동 주입됨
+    ("human", "{input}")  # 현재 턴의 사용자 메시지
 ])
 
+# 프롬프트와 LLM을 파이프 연산자(|)로 연결하여 체인 생성
+# 입력 → 프롬프트 포맷팅 → LLM 호출 → 응답 반환
 chain = prompt | llm
 
 # ─── 3단계: 메시지 히스토리를 자동으로 관리하는 체인 생성 ───
+# RunnableWithMessageHistory는 체인 실행 시 자동으로:
+# 1) get_session_history를 호출하여 이전 대화를 로드
+# 2) 프롬프트의 "history" 위치에 이전 메시지를 삽입
+# 3) 새 대화(입력+응답)를 DynamoDB에 저장
 chain_with_history = RunnableWithMessageHistory(
-    chain,
-    get_session_history,
-    input_messages_key="input",
-    history_messages_key="history"
+    chain,                          # 실행할 기본 체인
+    get_session_history,            # 히스토리를 가져올 팩토리 함수
+    input_messages_key="input",     # 입력 딕셔너리에서 사용자 메시지를 가리키는 키
+    history_messages_key="history"  # 프롬프트에서 히스토리가 삽입될 변수명
 )
 
 # ─── 4단계: 첫 번째 세션 (대화 시작) ───
+# 세션 설정: session_id로 대화를 식별하고 그룹화
 session_config = {"configurable": {"session_id": "user-123-travel"}}
 
-# 첫 번째 턴
+# 첫 번째 턴: 여행 계획의 기본 정보를 제공
 response1 = chain_with_history.invoke(
     {"input": "다음 주에 도쿄 여행을 계획하고 있어요. 3박 4일이에요."},
-    config=session_config
+    config=session_config  # 이 세션 ID로 대화가 DynamoDB에 저장됨
 )
 print(f"AI: {response1.content}")
 
-# 두 번째 턴 (같은 세션 내)
+# 두 번째 턴 (같은 세션 내): 추가 조건 제공
+# 같은 session_id를 사용하므로 첫 번째 턴의 내용을 기억한 상태로 응답
 response2 = chain_with_history.invoke(
     {"input": "예산은 200만원 정도이고, 맛집 위주로 돌아다니고 싶어요."},
     config=session_config
@@ -145,9 +165,12 @@ response2 = chain_with_history.invoke(
 print(f"AI: {response2.content}")
 
 # ─── 여기서 애플리케이션 종료 (대화가 DynamoDB에 자동 저장됨) ───
+# 애플리케이션이 종료되어도 DynamoDB에 대화가 영구 저장되어 있으므로
+# 이후 동일한 session_id로 접속하면 대화를 이어갈 수 있음
 
 # ─── 5단계: 다음 세션 (이전 대화 자동 복원) ───
 # 시간이 지난 후 같은 session_id로 접속하면 이전 대화를 자동으로 불러옴
+# DynamoDBChatMessageHistory가 테이블에서 기존 메시지를 로드하여 프롬프트에 주입
 
 response3 = chain_with_history.invoke(
     {"input": "아까 말한 도쿄 여행에서 시부야 근처 맛집 추천해줄 수 있어요?"},
@@ -157,9 +180,11 @@ print(f"AI: {response3.content}")
 # AI는 "3박 4일", "200만원 예산", "맛집 위주" 등의 이전 컨텍스트를 기억하고 응답
 
 # ─── (선택) 저장된 히스토리 확인 ───
+# DynamoDB에 실제로 저장된 메시지를 직접 조회하여 확인
 history = get_session_history("user-123-travel")
 print(f"\n저장된 메시지 수: {len(history.messages)}")
 for msg in history.messages:
+    # msg.type: "human" 또는 "ai"로 발화자 구분
     print(f"  [{msg.type}]: {msg.content[:50]}...")
 ```
 
@@ -276,39 +301,40 @@ MemoryDB는 Multi-AZ 내구성을 갖춘 인메모리 데이터베이스로, 벡
 ### AgentCore Memory 아키텍처
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         AgentCore Memory                                 │
-│                                                                         │
-│  ┌─────────────────────────┐       ┌─────────────────────────────────┐  │
-│  │      단기 메모리         │       │          장기 메모리             │  │
-│  │                         │       │                                 │  │
-│  │  ┌───────────────────┐  │       │  ┌─────────────────────────┐   │  │
-│  │  │   채팅 메시지      │  │       │  │    시맨틱 메모리         │   │  │
-│  │  └───────────────────┘  │       │  ├─────────────────────────┤   │  │
-│  │  ┌───────────────────┐  │       │  │    사용자 기본 설정      │   │  │
-│  │  │     이벤트         │  │       │  ├─────────────────────────┤   │  │
-│  │  └───────────────────┘  │       │  │        요약              │   │  │
-│  │                         │       │  ├─────────────────────────┤   │  │
-│  │     (동기식)            │       │  │    🆕 에피소드           │   │  │
-│  └────────────┬────────────┘       │  └─────────────────────────┘   │  │
-│               │                    └─────────────────────────────────┘  │
-│               │                                 ▲                       │
-│               ▼                                 │                       │
-│       ╭───────────────────╮                     │                       │
-│       │   메모리 전략      │─────────────────────┘                       │
-│       │ (비동기식 추출)    │                                             │
-│       ╰───────────────────╯                                             │
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │                      에이전트 구현                                │   │
-│  │                                                                   │   │
-│  │  ┌─────────────────┐ ┌──────────────────┐ ┌────────────────────┐ │   │
-│  │  │ 메시지 저장      │ │ 이벤트 검색      │ │ 메모리 레코드 검색  │ │   │
-│  │  │   (동기식)       │ │   (동기식)       │ │    (비동기식)       │ │   │
-│  │  └─────────────────┘ └──────────────────┘ └────────────────────┘ │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------------------+
+|                         AgentCore Memory                                 |
+|                                                                         |
+|  +--------------------------+      +----------------------------------+ |
+|  |    Short-term Memory      |      |        Long-term Memory           | |
+|  |                          |      |                                  | |
+|  |  +--------------------+  |      |  +----------------------------+ | |
+|  |  |   Chat Messages     |  |      |  |     Semantic Memory         | | |
+|  |  +--------------------+  |      |  +----------------------------+ | |
+|  |  +--------------------+  |      |  |     User Preferences        | | |
+|  |  |      Events         |  |      |  +----------------------------+ | |
+|  |  +--------------------+  |      |  |         Summary             | | |
+|  |                          |      |  +----------------------------+ | |
+|  |    (Synchronous)         |      |  |     🆕 Episodic            | | |
+|  +-------------+------------+      |  +----------------------------+ | |
+|                |                   +----------------------------------+ |
+|                |                                 ^                      |
+|                v                                 |                      |
+|       +------------------------+                |                      |
+|       |    Memory Strategy      |----------------+                      |
+|       |  (Async Extraction)     |                                       |
+|       +------------------------+                                       |
+|                                                                         |
+|  +-----------------------------------------------------------------+   |
+|  |                    Agent Implementation                          |   |
+|  |                                                                   |   |
+|  |  +---------------+ +------------------+ +----------------------+ |   |
+|  |  | Message Store  | | Event Retrieval   | | Memory Record        | |   |
+|  |  |    (Sync)      | |    (Sync)         | |   Retrieval (Async)  | |   |
+|  |  +---------------+ +------------------+ +----------------------+ |   |
+|  +-----------------------------------------------------------------+   |
++-------------------------------------------------------------------------+
 ```
+*AgentCore Memory의 전체 아키텍처: 단기 메모리, 장기 메모리, 메모리 전략의 관계*
 
 ---
 
@@ -348,39 +374,41 @@ MemoryDB는 Multi-AZ 내구성을 갖춘 인메모리 데이터베이스로, 벡
 ### 단기 메모리에서 장기 메모리로의 이동
 
 ```
-┌─────────────────────┐
-│     단기 메모리       │
-│                     │
-│  ┌───────────────┐  │
-│  │  원시 이벤트   │  │
-│  └───────────────┘  │
-│  ┌───────────────┐  │
-│  │ .add_turns()  │  │
-│  │ create_event  │  │
-│  └───────┬───────┘  │
-└──────────┼──────────┘
-           │
-           ▼
-┌──────────────────────────────────────────┐
-│        메모리 추출 (비동기식)              │
-│  K개 메시지마다 / X초 동안 활동 없을 때    │
-└──────────────────────┬───────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────┐
-│            장기 메모리                     │
-│                                          │
-│  ┌────────────────┐  ┌────────────────┐  │
-│  │ 벡터 스토리지   │  │ 임베딩 및 인덱싱│  │
-│  └────────────────┘  └────────────────┘  │
-└──────────────────────┬───────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────┐
-│   통합 (ADD/UPDATE/SKIP)                  │
-│   비슷한 메모리 검색                       │
-└──────────────────────────────────────────┘
++---------------------+
+|  Short-term Memory   |
+|                     |
+|  +---------------+  |
+|  |  Raw Events    |  |
+|  +---------------+  |
+|  +---------------+  |
+|  | .add_turns()  |  |
+|  | create_event  |  |
+|  +-------+-------+  |
++----------+----------+
+           |
+           v
++------------------------------------------+
+|      Memory Extraction (Async)           |
+|  Every K messages / After X seconds idle |
++----------------------+-------------------+
+                       |
+                       v
++------------------------------------------+
+|          Long-term Memory                |
+|                                          |
+|  +----------------+  +----------------+  |
+|  | Vector Storage  |  |Embedding &     |  |
+|  |                 |  |  Indexing       |  |
+|  +----------------+  +----------------+  |
++----------------------+-------------------+
+                       |
+                       v
++------------------------------------------+
+|   Consolidation (ADD/UPDATE/SKIP)        |
+|   Similar memory search                  |
++------------------------------------------+
 ```
+*단기 메모리에서 장기 메모리로의 비동기 추출 및 통합 프로세스*
 
 **핵심 포인트**:
 - `create_event` 작업은 이벤트를 단기 메모리에 저장
@@ -412,37 +440,41 @@ LLM 기반 추출 에이전트가 메모리 전략에 의해서 원시 대화에
 #### 전체 흐름 요약
 
 ```
-┌───────────────┐     ┌──────────────┐     ┌──────────────────────────┐
-│  사용자 대화   │────▶│create_event()│────▶│ 단기 메모리               │
-└───────────────┘     └──────────────┘     │ (원시 이벤트 저장)        │
-                                           └─────────────┬────────────┘
-                                                         │ 비동기 트리거
-                                                         ▼
-                                           ┌──────────────────────────┐
-                                           │ 추출 (Extraction)         │
-                                           │ LLM이 원시 대화에서       │
-                                           │ 인사이트 식별·추출        │
-                                           └─────────────┬────────────┘
-                                                         │
-                                                         ▼
-                                           ┌──────────────────────────┐
-                                           │ 통합 (Consolidation)      │
-                                           │ 기존 메모리와 비교·판단   │
-                                           │ ADD/UPDATE/SKIP           │
-                                           └─────────────┬────────────┘
-                                                         │
-                                                         ▼
-                                           ┌──────────────────────────┐
-                                           │ 벡터 임베딩 + 인덱싱      │
-                                           │ (장기 메모리 레코드 저장) │
-                                           └─────────────┬────────────┘
-                                                         │
-                                                         ▼
-                                           ┌──────────────────────────┐
-                                           │ RetrieveMemoryRecords()  │
-                                           │ 로 시맨틱 검색 가능       │
-                                           └──────────────────────────┘
++---------------+     +--------------+     +--------------------------+
+| User           |---->|create_event()|---->| Short-term Memory        |
+| Conversation   |     +--------------+     | (Raw event storage)      |
++---------------+                           +-------------+------------+
+                                                          | Async trigger
+                                                          v
+                                            +--------------------------+
+                                            | Extraction               |
+                                            | LLM identifies &         |
+                                            | extracts insights        |
+                                            +-------------+------------+
+                                                          |
+                                                          v
+                                            +--------------------------+
+                                            | Consolidation            |
+                                            | Compare with existing    |
+                                            | memory                   |
+                                            | ADD/UPDATE/SKIP          |
+                                            +-------------+------------+
+                                                          |
+                                                          v
+                                            +--------------------------+
+                                            | Vector Embedding +       |
+                                            | Indexing                 |
+                                            | (Long-term memory        |
+                                            |  record stored)          |
+                                            +-------------+------------+
+                                                          |
+                                                          v
+                                            +--------------------------+
+                                            | RetrieveMemoryRecords()  |
+                                            | enables semantic search  |
+                                            +--------------------------+
 ```
+*사용자 대화에서 장기 메모리 레코드까지의 전체 처리 흐름*
 ---
 
 ## 3. 메모리 전략 (Memory Strategies)
@@ -459,15 +491,22 @@ LLM 기반 추출 에이전트가 메모리 전략에 의해서 원시 대화에
 ### 메모리 리소스 생성 코드
 
 ```python
+# AgentCore Memory SDK에서 메모리 클라이언트 임포트
 from bedrock_agentcore.memory import MemoryClient
 
+# 메모리 클라이언트 생성 (us-west-2 리전에 연결)
 client = MemoryClient(region_name="us-west-2")
 
+# 메모리 리소스 생성 및 ACTIVE 상태가 될 때까지 대기
+# create_memory_and_wait는 생성 요청 후 리소스가 준비될 때까지 폴링(polling)함
 memory = client.create_memory_and_wait(
-    name="MyAgentMemory",
+    name="MyAgentMemory",  # 메모리 리소스의 식별 이름
     strategies=[{
+        # 사용자 기본 설정 전략: 대화에서 사용자 선호도를 자동 추출·저장
         "userPreferenceMemoryStrategy": {
-            "name": "UserPreference",
+            "name": "UserPreference",  # 전략 이름 (검색 시 참조용)
+            # {actorId}는 실행 시 실제 사용자 ID로 대체됨
+            # 사용자별로 메모리를 분리하여 격리(isolation) 보장
             "namespaces": ["/users/{actorId}"]
         }
     }]
@@ -476,11 +515,17 @@ memory = client.create_memory_and_wait(
 
 **시맨틱 전략 예시**:
 ```python
+# 시맨틱(의미 기반) 전략으로 메모리 리소스 생성
+# 시맨틱 전략은 대화에서 사실(fact)과 지식을 추출하여 벡터 임베딩으로 저장
 memory = client.create_memory_and_wait(
     name="MyAgentMemory",
     strategies=[{
+        # StrategyType.SEMANTIC.value는 "semanticMemoryStrategy" 문자열로 평가됨
+        # Enum을 사용하면 오타를 방지할 수 있음
         StrategyType.SEMANTIC.value: {
-            "name": "CustomerSupport",
+            "name": "CustomerSupport",  # 고객 지원용 시맨틱 메모리
+            # 사용자별로 네임스페이스를 분리하여
+            # 한 사용자의 메모리가 다른 사용자에게 노출되지 않도록 보장
             "namespaces": ["/users/{actorId}"]
         }
     }]
@@ -494,23 +539,33 @@ memory = client.create_memory_and_wait(
 ### 이벤트 저장 (단기 메모리)
 
 ```python
+# 여러 메모리 전략을 조합한 메모리 리소스 생성
+# 하나의 메모리에 시맨틱 + 사용자 기본 설정 전략을 동시에 적용하여
+# 다양한 유형의 정보를 각각 적합한 방식으로 추출·저장
 memory = client.create_memory_and_wait(
-    name="CustomerSupportMemory",
+    name="CustomerSupportMemory",  # 고객 지원 에이전트용 메모리
     strategies=[
         {
+            # 시맨틱 전략: 대화에서 사실(fact)과 일반 지식을 추출
+            # 예: "고객이 서울에 거주한다", "지난주 주문한 상품이 파손되었다"
             "semanticMemoryStrategy": {
                 "name": "FactsAndKnowledge",
+                # /facts 하위 네임스페이스에 사실 정보를 분리 저장
                 "namespaces": ["/users/{actorId}/facts"]
             }
         },
         {
+            # 사용자 기본 설정 전략: 대화에서 선호도와 설정을 추출
+            # 예: "익일 배송 선호", "이메일 알림 원함", "채식 식단"
             "userPreferenceMemoryStrategy": {
                 "name": "PreferenceLearner",
+                # /preferences 하위 네임스페이스에 선호도를 분리 저장
                 "namespaces": ["/users/{actorId}/preferences"]
             }
         }
     ]
 )
+# 생성된 메모리 리소스의 고유 ID를 저장 (이후 이벤트 저장·검색에 사용)
 memory_id = memory.get("id")
 print(f"Memory 생성 완료: {memory_id}")
 ```
@@ -522,14 +577,20 @@ print(f"Memory 생성 완료: {memory_id}")
 ### 메모리 검색 (장기 메모리)
 
 ```python
+# 장기 메모리에서 시맨틱(의미 기반) 검색 수행
+# retrieve_memories는 쿼리 텍스트를 벡터 임베딩으로 변환한 뒤,
+# 저장된 메모리 레코드와의 유사도를 계산하여 관련도 높은 결과를 반환
 memories = client.retrieve_memories(
-    memory_id=memory_id,
-# 다음 세션에서 "sarah-kim"이 접속하면, 이전에 추출된 선호도를 검색
+    memory_id=memory_id,  # 검색 대상 메모리 리소스 ID
+    # 특정 사용자의 선호도 네임스페이스만 검색 범위로 제한
+    # 이렇게 하면 다른 사용자의 메모리에 접근하지 않으며, 검색 속도도 향상됨
     namespace="/users/sarah-kim/preferences",
+    # 자연어 쿼리: 임베딩으로 변환되어 코사인 유사도 기반 검색 수행
     query="배송 관련 선호 사항"
 )
 print(f"\n검색된 메모리:")
 for mem in memories:
+    # 각 메모리 레코드의 content 필드에 추출된 정보가 텍스트로 저장되어 있음
     print(f"  - {mem.get('content')}")
 # 결과 예시: "사용자는 익일 배송을 선호함"
 ```
@@ -564,42 +625,61 @@ for mem in memories:
 ### 방식 1: 도구(Tool) 기반 통합
 
 ```python
+# Strands SDK와 AgentCore 메모리 도구 통합을 위한 임포트
 from strands import tool, Agent
+# AgentCore Memory를 Strands 에이전트의 도구(tool)로 제공하는 프로바이더
 from strands_tools.agent_core_memory import AgentCoreMemoryToolProvider
 
-# 메모리 도구 제공자 생성
+# 메모리 도구 제공자(provider) 생성
+# 이 프로바이더는 에이전트에게 메모리 저장/검색 도구를 자동으로 노출하며,
+# LLM이 대화 중 자율적으로 "언제 기억할지", "무엇을 검색할지"를 판단함
 strands_provider = AgentCoreMemoryToolProvider(
-    memory_id=memory.get("id"),
-    actor_id="CaliforniaPerson",
-    session_id="sess1",
-    namespace="/users/CaliforniaPerson",
-    region="us-west-2"
+    memory_id=memory.get("id"),         # 연결할 AgentCore Memory 리소스 ID
+    actor_id="CaliforniaPerson",        # 현재 사용자 식별자 (네임스페이스의 {actorId}로 치환)
+    session_id="sess1",                 # 현재 세션 식별자 (단기 메모리 이벤트 그룹화)
+    namespace="/users/CaliforniaPerson", # 메모리 검색/저장 시 사용할 네임스페이스 경로
+    region="us-west-2"                  # AgentCore 서비스 리전
 )
 ```
 
 ### 방식 2: 후크(Hook) 기반 통합
 
 ```python
+# Strands SDK의 후크(Hook) 시스템을 위한 임포트
+# 후크는 에이전트 생명주기의 특정 시점에 자동으로 실행되는 콜백(callback)
 from strands.hooks import (
     AfterInvocationEvent, HookRegistry, 
     MessageAddedEvent, HookProvider
 )
 
+# HookProvider를 상속하여 커스텀 메모리 후크 클래스 정의
+# 이 클래스는 에이전트의 이벤트에 반응하여 메모리를 자동으로 검색/저장함
 class MyMemoryHooks(HookProvider):
     def retrieve(self, event: MessageAddedEvent):
-        """메시지 추가 시 관련 메모리 검색"""
+        """메시지가 대화에 추가될 때마다 자동으로 호출됨.
+        현재 메시지와 관련된 과거 메모리를 검색하여
+        에이전트가 이전 컨텍스트를 참조할 수 있도록 함"""
         memories = client.retrieve_memories(...)
     
     def save(self, event: AfterInvocationEvent):
-        """호출 완료 후 대화 내용 저장"""
+        """에이전트의 전체 호출(invocation)이 완료된 후 자동으로 호출됨.
+        이번 대화의 내용을 단기 메모리에 이벤트로 저장하여
+        장기 메모리 추출의 원본 데이터로 활용"""
         self.client.create_event(...)
     
     def register_hooks(self, registry: HookRegistry) -> None:
+        """후크 레지스트리에 콜백을 등록하는 메서드.
+        어떤 이벤트에 어떤 함수가 반응할지를 정의"""
+        # 메시지가 추가될 때 → 관련 메모리 검색
         registry.add_callback(MessageAddedEvent, self.retrieve)
+        # 호출 완료 후 → 대화 내용 저장
         registry.add_callback(AfterInvocationEvent, self.save)
 
-# 메모리가 있는 에이전트 생성
+# 메모리 후크 인스턴스 생성 (클라이언트와 메모리 리소스 참조 전달)
 memory_hooks = MyMemoryHooks(client, memory)
+# 후크가 연결된 에이전트 생성
+# 이제 에이전트는 매 대화 턴마다 자동으로 메모리를 검색하고,
+# 대화 종료 시 자동으로 내용을 저장함 (LLM의 판단 없이 결정적으로 동작)
 agent = Agent(hooks=[memory_hooks])
 ```
 
@@ -716,14 +796,21 @@ AgentCore Memory는 다중 사용자 및 다중 세션 메모리를 안전하게
 
 **활용 사례**:
 ```python
+# 🆕 Structured Metadata Filtering 활용 예시
+# 시맨틱 검색에 구조화된 메타데이터 필터를 추가하여
+# 검색 정확도를 높이고 불필요한 결과를 사전에 제거
+
 # 특정 부서의 고우선순위 메모리만 검색
 memories = client.retrieve_memories(
     memory_id=memory_id,
-    namespace="/support/tickets",
-    query="환불 관련 이슈",
+    namespace="/support/tickets",  # 지원 티켓 관련 네임스페이스
+    query="환불 관련 이슈",         # 시맨틱 검색 쿼리 (벡터 유사도 기반)
+    # metadata_filter: 메타데이터 속성으로 사전 필터링 후 시맨틱 검색 수행
+    # 이렇게 하면 전체 메모리 중 조건에 맞는 레코드만 대상으로 검색하여
+    # 검색 정확도와 성능이 모두 향상됨
     metadata_filter={
-        "department": "finance",
-        "priority": "high"
+        "department": "finance",  # 재무 부서 관련 메모리만
+        "priority": "high"        # 높은 우선순위만
     }
 )
 ```
@@ -784,31 +871,33 @@ memories = client.retrieve_memories(
 ### 9.6 도구 기반 vs 후크 기반 - 실전 선택 기준
 
 ```
-도구 기반을 선택하는 경우:
-├── 에이전트가 "언제 기억할지"를 스스로 판단해야 할 때
-├── 복잡한 메모리 로직 (조건부 저장, 선택적 검색)
-└── 프로토타입 단계 (빠른 실험)
+Choose Tool-based when:
++-- Agent needs to decide "when to remember" autonomously
++-- Complex memory logic (conditional save, selective retrieval)
++-- Prototype phase (fast experimentation)
 
-후크 기반을 선택하는 경우:
-├── 모든 대화를 일관되게 저장해야 할 때
-├── 토큰 비용을 최소화해야 할 때
-├── 예측 가능한 동작이 중요할 때 (프로덕션)
-└── 메모리 저장/검색이 항상 필요한 경우
+Choose Hook-based when:
++-- All conversations must be saved consistently
++-- Token costs must be minimized
++-- Predictable behavior is important (production)
++-- Memory save/retrieval is always needed
 ```
+*도구 기반과 후크 기반 메모리 통합 방식의 선택 기준*
 
 ### 9.7 멀티 에이전트 메모리 공유 패턴
 
 ```
-┌────────────────────┐         ┌──────────────────────────────┐
-│    에이전트 A       │         │       AgentCore Memory        │
-│   (고객 지원)       │────────▶│                              │
-└────────────────────┘         │  /users/{userId}             │
-                               │  /shared/knowledge           │
-┌────────────────────┐         │                              │
-│    에이전트 B       │────────▶│                              │
-│   (기술 지원)       │         └──────────────────────────────┘
-└────────────────────┘
++--------------------+         +------------------------------+
+|    Agent A          |         |       AgentCore Memory        |
+| (Customer Support)  |-------->|                              |
++--------------------+         |  /users/{userId}             |
+                               |  /shared/knowledge           |
++--------------------+         |                              |
+|    Agent B          |-------->|                              |
+| (Technical Support) |         +------------------------------+
++--------------------+
 ```
+*여러 에이전트가 동일한 AgentCore Memory를 공유하는 패턴*
 
 - 같은 메모리 리소스를 여러 에이전트가 공유
 - 네임스페이스로 접근 범위 분리

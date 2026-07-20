@@ -1,395 +1,395 @@
-# 구현 계획: Learning App Enhancements
+# Implementation Plan: Learning App Enhancements
 
-## 개요
+## Overview
 
-React 18 + Vite 6 기반 AgentCore 학습 앱에 8개 기능 개선을 구현한다. 구현 순서는 (1) 기반 인프라(테스트 프레임워크, Context), (2) 핵심 기능(진도 추적, 코드 블록), (3) 외부 연동(D2 렌더링), (4) UI/레이아웃 개선, (5) Mermaid→D2 전환 및 mermaid 의존성 제거, (6) UI 리디자인(다크모드, TreeNavigation, 브레드크럼, 태그 뱃지, 풋터) 순으로 진행하며, 각 단계에서 기존 코드와의 통합을 점진적으로 수행한다.
+Implement 8 feature improvements for the AgentCore learning app built with React 18 + Vite 6. The implementation order is (1) foundational infrastructure (test framework, Context), (2) core features (progress tracking, code blocks), (3) external integration (D2 rendering), (4) UI/layout improvements, (5) Mermaid→D2 transition and mermaid dependency removal, (6) UI redesign (dark mode, TreeNavigation, breadcrumbs, tag badges, footer), with incremental integration with existing code at each stage.
 
-## 태스크
+## Tasks
 
-- [x] 1. 테스트 프레임워크 설정 및 ProgressContext 구현
-  - [x] 1.1 Vitest + Testing Library + fast-check 설정
-    - `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `fast-check`, `jsdom` devDependencies 추가
-    - `vitest.config.js` 생성 (jsdom 환경, globals, setupFiles 설정)
-    - `src/test/setup.js` 생성 (@testing-library/jest-dom import)
-    - package.json에 `"test": "vitest --run"` 스크립트 추가
-    - _요구사항: 전체 테스트 인프라_
+- [x] 1. Test Framework Setup and ProgressContext Implementation
+  - [x] 1.1 Vitest + Testing Library + fast-check Setup
+    - Add `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `fast-check`, `jsdom` as devDependencies
+    - Create `vitest.config.js` (jsdom environment, globals, setupFiles configuration)
+    - Create `src/test/setup.js` (@testing-library/jest-dom import)
+    - Add `"test": "vitest --run"` script to package.json
+    - _Requirements: Overall test infrastructure_
 
-  - [x] 1.2 ProgressContext 및 useProgress Hook 구현
-    - `src/contexts/ProgressContext.jsx` 생성
-    - `ProgressProvider` 컴포넌트 구현: localStorage에서 초기 상태 로드, `toggleModule(moduleId)` 함수 제공
-    - `useProgress()` 커스텀 Hook 구현: `progress`, `toggleModule`, `completedCount`, `totalCount`, `percentage` 반환
-    - localStorage 키: `agentcore-learning-progress`
-    - localStorage 접근 불가/파싱 실패 시 모든 모듈을 미완료로 초기화하고 에러 없이 동작
-    - 스키마 불일치 시 누락 필드 기본값 보정
-    - _요구사항: 2.1, 2.2, 2.3, 2.5, 2.6, 2.8_
+  - [x] 1.2 ProgressContext and useProgress Hook Implementation
+    - Create `src/contexts/ProgressContext.jsx`
+    - Implement `ProgressProvider` component: load initial state from localStorage, provide `toggleModule(moduleId)` function
+    - Implement `useProgress()` custom Hook: return `progress`, `toggleModule`, `completedCount`, `totalCount`, `percentage`
+    - localStorage key: `agentcore-learning-progress`
+    - If localStorage is inaccessible or parsing fails, initialize all modules as incomplete and operate without errors
+    - Correct missing fields with default values on schema mismatch
+    - _Requirements: 2.1, 2.2, 2.3, 2.5, 2.6, 2.8_
 
   - [x] 1.3 Property test: Progress persistence round-trip
-    - **속성 1: 진도 영속성 왕복 검증(Progress persistence round-trip)**
-    - fast-check로 임의의 progress state 생성 → serialize → localStorage mock에 저장 → deserialize → 동일성 검증
-    - **검증 대상: 요구사항 2.1, 2.6**
+    - **Property 1: Progress persistence round-trip**
+    - Generate arbitrary progress state with fast-check → serialize → save to localStorage mock → deserialize → verify identity
+    - **Validates: Requirements 2.1, 2.6**
 
   - [x] 1.4 Property test: Completion toggle preserves data integrity
-    - **속성 2: 완료 토글 데이터 무결성 보존(Completion toggle preserves data integrity)**
-    - 임의의 moduleId와 초기 상태에서 toggle 1회 → completed/completedAt 검증, toggle 2회 → 원래 completed 상태 복원 검증
-    - **검증 대상: 요구사항 2.2, 2.3**
+    - **Property 2: Completion toggle preserves data integrity**
+    - From arbitrary moduleId and initial state: toggle once → verify completed/completedAt, toggle twice → verify original completed state restoration
+    - **Validates: Requirements 2.2, 2.3**
 
   - [x] 1.5 Property test: Progress calculation correctness
-    - **속성 3: 진도 계산 정확성(Progress calculation correctness)**
-    - 0~9개 임의 모듈 완료 설정 → completedCount === K, percentage === Math.round((K/N)*100) 검증
-    - **검증 대상: 요구사항 2.4, 2.5**
+    - **Property 3: Progress calculation correctness**
+    - Set 0~9 arbitrary modules as completed → verify completedCount === K, percentage === Math.round((K/N)*100)
+    - **Validates: Requirements 2.4, 2.5**
 
-- [x] 2. ProgressSummary 및 ModuleCompletionToggle 구현
-  - [x] 2.1 ProgressSummary 컴포넌트 구현
-    - `src/components/ProgressSummary.jsx` 생성
-    - Cloudscape `ProgressBar` 컴포넌트를 활용하여 완료 수/전체 수 및 백분율 표시
-    - `useProgress()` Hook으로 데이터 소비
-    - _요구사항: 2.4, 2.5_
+- [x] 2. ProgressSummary and ModuleCompletionToggle Implementation
+  - [x] 2.1 ProgressSummary Component Implementation
+    - Create `src/components/ProgressSummary.jsx`
+    - Display completed count/total count and percentage using the Cloudscape `ProgressBar` component
+    - Consume data via `useProgress()` Hook
+    - _Requirements: 2.4, 2.5_
 
-  - [x] 2.2 ModuleCompletionToggle 컴포넌트 구현
-    - `src/components/ModuleCompletionToggle.jsx` 생성
-    - Cloudscape `Toggle` 또는 `Checkbox` 컴포넌트 사용
+  - [x] 2.2 ModuleCompletionToggle Component Implementation
+    - Create `src/components/ModuleCompletionToggle.jsx`
+    - Use Cloudscape `Toggle` or `Checkbox` component
     - props: `moduleId`, `completed`, `onToggle`
-    - 각 모듈 콘텐츠 뷰 상단에 배치
-    - _요구사항: 2.7_
+    - Place at the top of each module content view
+    - _Requirements: 2.7_
 
-  - [x] 2.3 App.jsx에 ProgressProvider 및 진도 UI 통합
-    - App을 `ProgressProvider`로 감싸기
-    - SideNavigation 상단에 `ProgressSummary` 배치
-    - SideNavigation 각 항목에 완료 상태 아이콘(체크 표시) 추가
-    - ContentLayout 내 `ModuleCompletionToggle` 배치
-    - _요구사항: 1.3, 2.4, 2.7_
+  - [x] 2.3 Integrate ProgressProvider and Progress UI in App.jsx
+    - Wrap App with `ProgressProvider`
+    - Place `ProgressSummary` at the top of SideNavigation
+    - Add completion status icon (check mark) to each SideNavigation item
+    - Place `ModuleCompletionToggle` within ContentLayout
+    - _Requirements: 1.3, 2.4, 2.7_
 
-  - [x] 2.4 단위 테스트: ProgressSummary 및 ModuleCompletionToggle
-    - ProgressSummary가 올바른 카운트와 퍼센트를 렌더링하는지 검증
-    - ModuleCompletionToggle 클릭 시 onToggle 호출 검증
-    - localStorage 손상 시 초기화 동작 검증
-    - _요구사항: 2.4, 2.5, 2.7, 2.8_
+  - [x] 2.4 Unit tests: ProgressSummary and ModuleCompletionToggle
+    - Verify ProgressSummary renders correct count and percentage
+    - Verify ModuleCompletionToggle calls onToggle on click
+    - Verify initialization behavior on localStorage corruption
+    - _Requirements: 2.4, 2.5, 2.7, 2.8_
 
-- [x] 3. 체크포인트 - 진도 추적 기능 검증
-  - 모든 테스트가 통과하는지 확인하고, 문제가 발생하면 사용자에게 질문합니다.
+- [x] 3. Checkpoint - Progress Tracking Feature Verification
+  - Verify all tests pass and ask the user if any issues arise.
 
-- [x] 4. CodeBlockWrapper 및 CopyButton 구현
-  - [x] 4.1 CopyButton 컴포넌트 구현
-    - `src/components/CopyButton.jsx` 생성
-    - `navigator.clipboard.writeText(text)` 시도, 실패 시 임시 textarea + execCommand('copy') fallback
-    - 성공 시 "복사됨" 상태 2초 유지 후 원래 상태 복원
-    - `aria-label="코드 복사"` 접근성 속성 적용
-    - 호버/포커스 시에만 표시되는 CSS 처리
-    - _요구사항: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
+- [x] 4. CodeBlockWrapper and CopyButton Implementation
+  - [x] 4.1 CopyButton Component Implementation
+    - Create `src/components/CopyButton.jsx`
+    - Attempt `navigator.clipboard.writeText(text)`, fallback to temporary textarea + execCommand('copy') on failure
+    - On success, maintain "Copied" state for 2 seconds then restore original state
+    - Apply `aria-label="Copy code"` accessibility attribute
+    - CSS handling to show only on hover/focus
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
 
-  - [x] 4.2 CodeBlockWrapper 컴포넌트 구현
-    - `src/components/CodeBlockWrapper.jsx` 생성
+  - [x] 4.2 CodeBlockWrapper Component Implementation
+    - Create `src/components/CodeBlockWrapper.jsx`
     - props: `code`, `language`
-    - language가 `mermaid` 또는 `d2`인 경우 → 다이어그램 렌더러에 위임 (구문 강조 미적용, 복사 버튼 미표시)
-    - language가 지원 언어인 경우 → `react-syntax-highlighter` Prism + dark theme 적용
-    - language가 없는 경우 → plain text 렌더링
-    - 모든 비-다이어그램 코드 블록에 CopyButton 포함
-    - 지원 언어: Python, JavaScript, TypeScript, JSON, YAML, Bash, HCL (최소)
-    - _요구사항: 3.1, 3.5, 4.1, 4.2, 4.3, 4.4, 4.5_
+    - If language is `mermaid` or `d2` → delegate to diagram renderer (no syntax highlighting, no copy button)
+    - If language is a supported language → apply `react-syntax-highlighter` Prism + dark theme
+    - If language is not provided → render as plain text
+    - Include CopyButton in all non-diagram code blocks
+    - Supported languages: Python, JavaScript, TypeScript, JSON, YAML, Bash, HCL (minimum)
+    - _Requirements: 3.1, 3.5, 4.1, 4.2, 4.3, 4.4, 4.5_
 
-  - [x] 4.3 속성 테스트: Copy preserves code content
-    - **속성 4: 복사 시 코드 내용 보존(Copy preserves code content)**
-    - 임의의 문자열(유니코드 포함)을 copy 함수에 전달 → clipboard mock 내용과 동일성 검증
-    - **검증 대상: 요구사항 3.2**
+  - [x] 4.3 Property test: Copy preserves code content
+    - **Property 4: Copy preserves code content**
+    - Pass arbitrary string (including Unicode) to copy function → verify identity with clipboard mock contents
+    - **Validates: Requirements 3.2**
 
-  - [x] 4.4 속성 테스트: Syntax highlighting tokenization
-    - **속성 5: 구문 강조 토큰화(Syntax highlighting tokenization)**
-    - 지원 언어 중 임의 선택 + 임의 비-공백 코드 문자열 → 하이라이터 출력에 styled span 존재 검증
-    - **검증 대상: 요구사항 4.1**
+  - [x] 4.4 Property test: Syntax highlighting tokenization
+    - **Property 5: Syntax highlighting tokenization**
+    - Select arbitrary supported language + arbitrary non-empty code string → verify styled span exists in highlighter output
+    - **Validates: Requirements 4.1**
 
-  - [x] 4.5 단위 테스트: CopyButton 및 CodeBlockWrapper
-    - CopyButton 클릭 후 2초 "복사됨" 상태 확인 (타이머 mock)
-    - 클립보드 API 미지원 시 fallback 동작 검증
-    - mermaid 언어 코드 블록이 구문 강조되지 않는 검증
-    - language 미지정 시 plain text 렌더링 검증
-    - _요구사항: 3.2, 3.3, 3.4, 4.4, 4.5_
+  - [x] 4.5 Unit tests: CopyButton and CodeBlockWrapper
+    - Verify "Copied" state for 2 seconds after CopyButton click (timer mock)
+    - Verify fallback behavior when clipboard API is not supported
+    - Verify mermaid language code blocks are not syntax highlighted
+    - Verify plain text rendering when language is not specified
+    - _Requirements: 3.2, 3.3, 3.4, 4.4, 4.5_
 
-- [x] 5. D2Renderer 구현
-  - [x] 5.1 D2Renderer 컴포넌트 구현
-    - `src/components/D2Renderer.jsx` 생성
-    - Kroki API 연동: `POST https://kroki.io/d2/svg`, Content-Type: `text/plain`, body: D2 텍스트 원본
-    - 로딩 상태: 스피너 또는 placeholder 표시
-    - 성공 시: SVG를 Diagram_Container 내에 렌더링 (light 배경, 16px padding, 8px border-radius, 중앙 정렬, max-width 100%)
-    - 에러 시: 원본 코드 블록 유지 + 좌측 4px `#e74c3c` 보더
-    - timeout: 10초
-    - 768px 이하 viewport에서 수평 스크롤 허용
-    - _요구사항: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7_
+- [x] 5. D2Renderer Implementation
+  - [x] 5.1 D2Renderer Component Implementation
+    - Create `src/components/D2Renderer.jsx`
+    - Kroki API integration: `POST https://kroki.io/d2/svg`, Content-Type: `text/plain`, body: raw D2 text
+    - Loading state: display spinner or placeholder
+    - On success: render SVG within Diagram_Container (light background, 16px padding, 8px border-radius, center-aligned, max-width 100%)
+    - On error: retain original code block + left 4px `#e74c3c` border
+    - timeout: 10 seconds
+    - Allow horizontal scrolling on viewports ≤768px
+    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7_
 
-  - [x] 5.2 속성 테스트: D2 encoding round-trip
-    - **속성 6: D2 인코딩 왕복 검증(D2 encoding round-trip)**
-    - 임의의 비-공백 D2 텍스트 → POST body 인코딩 → 원본 동일성 검증 (POST 방식이므로 encoding은 identity이지만 trim/whitespace 처리 검증)
-    - **검증 대상: 요구사항 6.2**
+  - [x] 5.2 Property test: D2 encoding round-trip
+    - **Property 6: D2 encoding round-trip**
+    - Arbitrary non-empty D2 text → POST body encoding → verify identity with original (since POST method, encoding is identity but verify trim/whitespace handling)
+    - **Validates: Requirements 6.2**
 
-  - [x] 5.3 단위 테스트: D2Renderer
-    - Kroki 서비스 응답 성공 시 SVG 삽입 검증 (fetch mock)
-    - Kroki 서비스 에러 시 원본 코드 블록 + 에러 보더 검증
-    - mermaid 코드 블록이 D2Renderer에 의해 처리되지 않는 검증
-    - _요구사항: 6.1, 6.7, 6.8_
+  - [x] 5.3 Unit tests: D2Renderer
+    - Verify SVG insertion on successful Kroki service response (fetch mock)
+    - Verify original code block + error border on Kroki service error
+    - Verify mermaid code blocks are not processed by D2Renderer
+    - _Requirements: 6.1, 6.7, 6.8_
 
-- [x] 6. MarkdownRenderer 통합 리팩터링
-  - [x] 6.1 MarkdownRenderer에 components prop 기반 코드 블록 라우팅 적용
-    - ReactMarkdown의 `components={{ code }}` prop 활용
-    - inline code → 기존 스타일 유지
-    - block code + language=mermaid → 기존 Mermaid 렌더링 유지 (useEffect 기반 또는 컴포넌트 전환)
-    - block code + language=d2 → D2Renderer로 위임
-    - block code + 기타 language → CodeBlockWrapper로 위임
-    - block code + language 없음 → CodeBlockWrapper (plain text 모드)로 위임
-    - 기존 mermaid useEffect 후처리 로직 제거 또는 컴포넌트 기반으로 전환
-    - _요구사항: 4.5, 6.8, 6.9_
+- [x] 6. MarkdownRenderer Integration Refactoring
+  - [x] 6.1 Apply components prop-based code block routing in MarkdownRenderer
+    - Use ReactMarkdown's `components={{ code }}` prop
+    - inline code → maintain existing style
+    - block code + language=mermaid → maintain existing Mermaid rendering (useEffect-based or component switch)
+    - block code + language=d2 → delegate to D2Renderer
+    - block code + other language → delegate to CodeBlockWrapper
+    - block code + no language → delegate to CodeBlockWrapper (plain text mode)
+    - Remove or convert existing mermaid useEffect post-processing logic to component-based
+    - _Requirements: 4.5, 6.8, 6.9_
 
-  - [x] 6.2 통합 테스트: MarkdownRenderer 통합
-    - mermaid 코드 블록이 기존처럼 다이어그램으로 렌더링되는 검증
-    - d2 코드 블록이 D2Renderer로 위임되는 검증
-    - python/js 코드 블록에 구문 강조 + 복사 버튼 표시 검증
-    - _요구사항: 4.5, 6.8, 6.9_
+  - [x] 6.2 Integration tests: MarkdownRenderer Integration
+    - Verify mermaid code blocks render as diagrams as before
+    - Verify d2 code blocks are delegated to D2Renderer
+    - Verify python/js code blocks show syntax highlighting + copy button
+    - _Requirements: 4.5, 6.8, 6.9_
 
-- [x] 7. 체크포인트 - 코드 블록 및 다이어그램 기능 검증
-  - 모든 테스트가 통과하는지 확인하고, 문제가 발생하면 사용자에게 질문합니다.
+- [x] 7. Checkpoint - Code Block and Diagram Feature Verification
+  - Verify all tests pass and ask the user if any issues arise.
 
-- [x] 8. UI 개선 및 레이아웃 안정성
-  - [x] 8.1 Cloudscape 디자인 토큰 기반 스타일링 통일
-    - `MarkdownRenderer.css` 및 `global.css` 개선
-    - Cloudscape 디자인 토큰(spacing, typography, color) 활용하여 일관된 스타일 적용
-    - 헤딩, 보더, 액센트 요소에 모던 색상 스킴 적용
-    - 인터랙티브 요소 호버 시 100ms 이내 시각적 피드백 트랜지션
-    - 모듈 전환 시 부드러운 콘텐츠 트랜지션 효과 추가
-    - _요구사항: 1.1, 1.2, 1.5, 1.6_
+- [x] 8. UI Improvements and Layout Stability
+  - [x] 8.1 Unified Styling Based on Cloudscape Design Tokens
+    - Improve `MarkdownRenderer.css` and `global.css`
+    - Apply consistent styling using Cloudscape design tokens (spacing, typography, color)
+    - Apply modern color scheme to headings, borders, and accent elements
+    - Visual feedback transition within 100ms on interactive element hover
+    - Add smooth content transition effects during module switching
+    - _Requirements: 1.1, 1.2, 1.5, 1.6_
 
-  - [x] 8.2 반응형 레이아웃 및 스크롤 안정성 확보
-    - Cloudscape AppLayout이 기본 제공하는 sticky 헤더/사이드바 동작 활용
-    - 320px~1920px viewport 범위에서 수평 오버플로 없이 반응형 렌더링 확인
-    - 768px 이하에서 사이드바 토글 가능 drawer로 동작 확인 (기존 navOpen 로직 활용)
-    - Content_Area 독립 수직 스크롤, 수평 스크롤바 미발생 보장
-    - 모바일에서 사이드바 drawer 열림 시 body scroll lock 방지
-    - _요구사항: 1.4, 1.7, 1.8, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8_
+  - [x] 8.2 Responsive Layout and Scroll Stability
+    - Leverage Cloudscape AppLayout's built-in sticky header/sidebar behavior
+    - Verify responsive rendering without horizontal overflow across 320px~1920px viewport range
+    - Verify sidebar operates as toggleable drawer below 768px (leverage existing navOpen logic)
+    - Ensure Content_Area independent vertical scrolling with no horizontal scrollbar
+    - Prevent body scroll lock when sidebar drawer opens on mobile
+    - _Requirements: 1.4, 1.7, 1.8, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8_
 
-  - [x] 8.3 단위 테스트: 반응형 breakpoint 및 레이아웃
-    - 768px 이하에서 사이드바가 drawer로 전환되는 검증
-    - 스크롤 시 헤더/사이드바 위치 고정 검증 (scroll event 시뮬레이션)
-    - _요구사항: 1.7, 5.1, 5.2_
+  - [x] 8.3 Unit tests: Responsive breakpoints and layout
+    - Verify sidebar transitions to drawer below 768px
+    - Verify header/sidebar position fixed during scroll (scroll event simulation)
+    - _Requirements: 1.7, 5.1, 5.2_
 
-- [x] 9. 최종 체크포인트 - 전체 기능 통합 검증
-  - 모든 테스트가 통과하는지 확인하고, 문제가 발생하면 사용자에게 질문합니다.
+- [x] 9. Final Checkpoint - Full Feature Integration Verification
+  - Verify all tests pass and ask the user if any issues arise.
 
 ---
 
-## 신규 태스크 (요구사항 7 & 8)
+## New Tasks (Requirements 7 & 8)
 
-- [x] 10. Mermaid → D2 전환 (요구사항 8)
-  - [x] 10.1 M02-Runtime_Summary.md의 5개 Mermaid 다이어그램을 D2 구문으로 변환
-    - `Contents/M02-Runtime_Summary.md`에서 모든 ```mermaid 코드 블록을 ```d2로 변환
-    - Mermaid graph TD/LR, subgraph, stateDiagram-v2 등을 D2 동등 구문으로 변환
-    - 원본 다이어그램의 논리적 구조와 관계를 동일하게 유지
-    - _요구사항: 8.1, 8.2, 8.3_
+- [x] 10. Mermaid → D2 Transition (Requirement 8)
+  - [x] 10.1 Convert 5 Mermaid diagrams in M02-Runtime_Summary.md to D2 syntax
+    - Convert all ```mermaid code blocks to ```d2 in `Contents/M02-Runtime_Summary.md`
+    - Convert Mermaid graph TD/LR, subgraph, stateDiagram-v2, etc. to equivalent D2 syntax
+    - Maintain identical logical structure and relationships from original diagrams
+    - _Requirements: 8.1, 8.2, 8.3_
 
-  - [x] 10.2 변환된 콘텐츠를 webapp/public/content/에 복사
-    - `webapp/public/content/M02-Runtime_Summary.md`에도 동일한 D2 변환 적용
-    - 두 파일의 다이어그램 내용 동기화 확인
-    - _요구사항: 8.3_
+  - [x] 10.2 Copy converted content to webapp/public/content/
+    - Apply the same D2 conversion to `webapp/public/content/M02-Runtime_Summary.md`
+    - Verify diagram content synchronization between the two files
+    - _Requirements: 8.3_
 
-  - [x] 10.2a 콘텐츠 파일의 ASCII art 다이어그램을 D2로 변환
-    - M00-CourseIntro_Summary.md: 타임라인 다이어그램 (1개)
-    - M01-Foundations_Summary.md: 기존 AI vs 에이전틱 AI 아키텍처 비교 다이어그램 (1개)
-    - M03-SecurityAndIdentity_Summary.md: 에이전트 보안 과제 맵 다이어그램 (1개)
-    - M04-ToolsAndGateway_Summary.md: 도구 선택 의사결정 트리 (1개)
-    - M05-Memory_Summary.md: AgentCore Memory 아키텍처 다이어그램 (1개)
-    - M06-DeploymentObservability_Summary.md: 서비스 아키텍처 + 세션 구조 다이어그램 (2개)
-    - M07-NewFeatures_Summary.md: Managed Harness 아키텍처 다이어그램 (1개)
-    - 각 ASCII art의 논리적 구조, 노드, 관계를 동일하게 유지하는 D2 구문으로 변환
-    - 기존 plain ``` 코드 펜스를 ```d2 코드 펜스로 교체
-    - Contents/ 및 webapp/public/content/ 양쪽 디렉토리에 적용
-    - _요구사항: 8.11, 8.12, 8.13_
+  - [x] 10.2a Convert ASCII art diagrams in content files to D2
+    - M00-CourseIntro_Summary.md: Timeline diagram (1)
+    - M01-Foundations_Summary.md: Traditional AI vs Agentic AI architecture comparison diagram (1)
+    - M03-SecurityAndIdentity_Summary.md: Agent security challenges map diagram (1)
+    - M04-ToolsAndGateway_Summary.md: Tool selection decision tree (1)
+    - M05-Memory_Summary.md: AgentCore Memory architecture diagram (1)
+    - M06-DeploymentObservability_Summary.md: Service architecture + session structure diagrams (2)
+    - M07-NewFeatures_Summary.md: Managed Harness architecture diagram (1)
+    - Convert to D2 syntax maintaining identical logical structure, nodes, and relationships from each ASCII art
+    - Replace existing plain ``` code fences with ```d2 code fences
+    - Apply to both Contents/ and webapp/public/content/ directories
+    - _Requirements: 8.11, 8.12, 8.13_
 
-  - [x] 10.2b 변환된 ASCII art D2 다이어그램을 webapp/public/content/에 동기화
-    - Contents/ 디렉토리의 변환 결과를 webapp/public/content/에 복사
-    - 모든 파일의 D2 다이어그램 내용 동기화 확인
-    - _요구사항: 8.11, 8.13_
+  - [x] 10.2b Sync converted ASCII art D2 diagrams to webapp/public/content/
+    - Copy conversion results from Contents/ directory to webapp/public/content/
+    - Verify D2 diagram content synchronization across all files
+    - _Requirements: 8.11, 8.13_
 
-  - [x] 10.3 MarkdownRenderer에서 MermaidRenderer 제거
-    - `MermaidRenderer` 컴포넌트 정의 삭제
-    - `import mermaid from 'mermaid'` 문 삭제
-    - `mermaid.initialize(...)` 호출 삭제
-    - `language === 'mermaid'` 분기를 CodeBlockWrapper로 위임하도록 변경
-    - _요구사항: 8.4, 8.6, 8.8, 8.9_
+  - [x] 10.3 Remove MermaidRenderer from MarkdownRenderer
+    - Delete `MermaidRenderer` component definition
+    - Delete `import mermaid from 'mermaid'` statement
+    - Delete `mermaid.initialize(...)` call
+    - Change `language === 'mermaid'` branch to delegate to CodeBlockWrapper
+    - _Requirements: 8.4, 8.6, 8.8, 8.9_
 
-  - [x] 10.4 CodeBlockWrapper에서 mermaid 코드 블록 처리 업데이트
-    - 기존 `if (language === 'mermaid') return null` 또는 다이어그램 위임 로직 제거
-    - mermaid 언어 코드 블록을 일반 구문 강조된 코드로 렌더링
-    - CodeBlockWrapper가 mermaid를 다른 언어와 동일하게 처리하도록 변경
-    - _요구사항: 8.8, 8.9_
+  - [x] 10.4 Update mermaid code block handling in CodeBlockWrapper
+    - Remove existing `if (language === 'mermaid') return null` or diagram delegation logic
+    - Render mermaid language code blocks as regular syntax-highlighted code
+    - Change CodeBlockWrapper to treat mermaid the same as other languages
+    - _Requirements: 8.8, 8.9_
 
-  - [x] 10.5 mermaid 패키지 의존성 제거
-    - `package.json`에서 `"mermaid": "^11.4.0"` 제거
-    - `npm install` 실행하여 node_modules에서 mermaid 삭제
-    - _요구사항: 8.5_
+  - [x] 10.5 Remove mermaid package dependency
+    - Remove `"mermaid": "^11.4.0"` from `package.json`
+    - Run `npm install` to remove mermaid from node_modules
+    - _Requirements: 8.5_
 
-  - [x] 10.6 Mermaid 관련 테스트 업데이트
-    - 기존 mermaid mock 및 mermaid 렌더링 테스트 제거
-    - mermaid 코드 블록이 plain code로 렌더링되는 테스트 추가
-    - MarkdownRenderer 통합 테스트에서 mermaid 다이어그램 렌더링 검증 제거
-    - 소스 코드에 `import mermaid` 또는 `require('mermaid')` 문이 없음을 검증하는 테스트 추가
-    - _요구사항: 8.6, 8.8, 8.9_
+  - [x] 10.6 Update Mermaid-related tests
+    - Remove existing mermaid mock and mermaid rendering tests
+    - Add tests verifying mermaid code blocks render as plain code
+    - Remove mermaid diagram rendering verification from MarkdownRenderer integration tests
+    - Add test verifying no `import mermaid` or `require('mermaid')` statements exist in source code
+    - _Requirements: 8.6, 8.8, 8.9_
 
-  - [ ]* 10.7 속성 테스트: Legacy mermaid blocks render as plain code
-    - **속성 11: 레거시 mermaid 블록 일반 코드 렌더링(Legacy mermaid blocks render as plain code)**
-    - 임의의 코드 문자열 + language="mermaid" → MarkdownRenderer → 결과에 SVG 없음 + 원본 코드 텍스트 포함 검증
-    - **검증 대상: 요구사항 8.8, 8.9**
+  - [ ]* 10.7 Property test: Legacy mermaid blocks render as plain code
+    - **Property 11: Legacy mermaid blocks render as plain code**
+    - Arbitrary code string + language="mermaid" → MarkdownRenderer → verify no SVG in result + original code text present
+    - **Validates: Requirements 8.8, 8.9**
 
-- [x] 11. DarkModeContext 구현 (요구사항 7)
-  - [x] 11.1 DarkModeContext 및 useDarkMode Hook 구현
-    - `src/contexts/DarkModeContext.jsx` 생성
-    - `DarkModeProvider` 컴포넌트 구현: localStorage에서 초기 모드 로드, `toggleDarkMode()` 함수 제공
-    - `useDarkMode()` 커스텀 Hook 구현: `isDarkMode`, `toggleDarkMode` 반환
-    - localStorage 키: `agentcore-dark-mode`, 값: `'dark'` 또는 `'light'`
-    - 초기화: localStorage 값 → 없으면 `prefers-color-scheme` media query 참조 → 기본 light
-    - Cloudscape `applyMode(Mode.Dark)` / `applyMode(Mode.Light)` 호출로 테마 적용
-    - localStorage 접근 불가 시 light 모드 기본값, 에러 무시
-    - _요구사항: 7.13, 7.14, 7.15_
+- [x] 11. DarkModeContext Implementation (Requirement 7)
+  - [x] 11.1 DarkModeContext and useDarkMode Hook Implementation
+    - Create `src/contexts/DarkModeContext.jsx`
+    - Implement `DarkModeProvider` component: load initial mode from localStorage, provide `toggleDarkMode()` function
+    - Implement `useDarkMode()` custom Hook: return `isDarkMode`, `toggleDarkMode`
+    - localStorage key: `agentcore-dark-mode`, value: `'dark'` or `'light'`
+    - Initialization: localStorage value → if absent, reference `prefers-color-scheme` media query → default light
+    - Apply theme via Cloudscape `applyMode(Mode.Dark)` / `applyMode(Mode.Light)` calls
+    - If localStorage is inaccessible, default to light mode and ignore error
+    - _Requirements: 7.13, 7.14, 7.15_
 
-  - [ ]* 11.2 속성 테스트: Dark mode persistence round-trip
-    - **속성 7: 다크 모드 영속성 왕복 검증(Dark mode persistence round-trip)**
-    - 임의의 모드 값("dark"/"light") → localStorage 저장 → 읽기 → 동일 모드 복원 검증
-    - **검증 대상: 요구사항 7.13, 7.14, 7.15**
+  - [ ]* 11.2 Property test: Dark mode persistence round-trip
+    - **Property 7: Dark mode persistence round-trip**
+    - Arbitrary mode value ("dark"/"light") → save to localStorage → read → verify same mode restoration
+    - **Validates: Requirements 7.13, 7.14, 7.15**
 
-  - [ ]* 11.3 단위 테스트: DarkModeContext
-    - DarkModeProvider 초기화 시 localStorage에서 모드 복원 검증
-    - toggleDarkMode 호출 시 모드 전환 및 localStorage 저장 검증
-    - 잘못된 localStorage 값('dark'/'light' 외) 시 light 기본값 검증
-    - applyMode 호출 검증 (Cloudscape global-styles mock)
-    - _요구사항: 7.13, 7.14, 7.15_
+  - [ ]* 11.3 Unit tests: DarkModeContext
+    - Verify DarkModeProvider restores mode from localStorage on initialization
+    - Verify toggleDarkMode switches mode and saves to localStorage
+    - Verify light default when localStorage has invalid value (not 'dark'/'light')
+    - Verify applyMode calls (Cloudscape global-styles mock)
+    - _Requirements: 7.13, 7.14, 7.15_
 
-- [x] 12. TreeNavigation 구현 (요구사항 7)
-  - [x] 12.1 NAVIGATION_TREE 데이터 구조 정의
-    - `src/data/navigationTree.js` 생성
-    - 계층적 NavigationNode[] 배열 정의 (시리즈 > 카테고리 > 개별 항목)
-    - 각 항목에 id, title, type, contentFile, tags, isNew 속성 포함
-    - 기존 PAGES 배열의 모듈 ID와 호환되도록 leaf 항목 id 유지
-    - TAG_COLORS 상수 정의 (sdk: 파란, service: 주황, concept: 녹색, tool: 보라, default: 회색)
-    - _요구사항: 7.2, 7.5, 7.9, 7.10_
+- [x] 12. TreeNavigation Implementation (Requirement 7)
+  - [x] 12.1 NAVIGATION_TREE Data Structure Definition
+    - Create `src/data/navigationTree.js`
+    - Define hierarchical NavigationNode[] array (series > category > individual items)
+    - Include id, title, type, contentFile, tags, isNew properties for each item
+    - Maintain leaf item ids compatible with existing PAGES array module IDs
+    - Define TAG_COLORS constant (sdk: blue, service: orange, concept: green, tool: purple, default: gray)
+    - _Requirements: 7.2, 7.5, 7.9, 7.10_
 
-  - [x] 12.2 TreeNavigation 컴포넌트 구현
-    - `src/components/TreeNavigation.jsx` 생성
-    - Cloudscape `ExpandableSection` 중첩으로 3단계 트리 구조 구현
+  - [x] 12.2 TreeNavigation Component Implementation
+    - Create `src/components/TreeNavigation.jsx`
+    - Implement 3-level tree structure using nested Cloudscape `ExpandableSection`
     - props: `navigationTree`, `activeItemId`, `onItemSelect`
-    - 확장/축소 상태 로컬 state 관리
-    - `isNew` 항목에 Cloudscape `Badge` "NEW" 표시
-    - 헤더에 "SKT - AX BootCamp" 타이틀 표시
-    - `TreeNavigation.css` 스타일링
-    - _요구사항: 7.2, 7.3, 7.4, 7.5, 7.6_
+    - Manage expand/collapse state via local state
+    - Display Cloudscape `Badge` "NEW" for items with `isNew`
+    - Display "SKT - AX BootCamp" title in header
+    - Style with `TreeNavigation.css`
+    - _Requirements: 7.2, 7.3, 7.4, 7.5, 7.6_
 
-  - [ ]* 12.3 속성 테스트: NEW badge rendering
-    - **속성 10: NEW 뱃지 렌더링(NEW badge rendering)**
-    - 임의의 내비게이션 항목(isNew true/false) → 렌더링 → NEW 뱃지 존재 여부가 isNew와 일치 검증
-    - **검증 대상: 요구사항 7.5**
+  - [ ]* 12.3 Property test: NEW badge rendering
+    - **Property 10: NEW badge rendering**
+    - Arbitrary navigation item (isNew true/false) → render → verify NEW badge presence matches isNew
+    - **Validates: Requirements 7.5**
 
-  - [ ]* 12.4 단위 테스트: TreeNavigation
-    - 3단계 중첩 렌더링 검증
-    - 확장/축소 토글 동작 검증
-    - 헤더 타이틀 "SKT - AX BootCamp" 표시 검증
-    - NEW 뱃지 렌더링 검증
-    - 768px 이하에서 drawer 전환 검증
-    - _요구사항: 7.2, 7.3, 7.4, 7.5, 7.6, 7.16_
+  - [ ]* 12.4 Unit tests: TreeNavigation
+    - Verify 3-level nested rendering
+    - Verify expand/collapse toggle behavior
+    - Verify header title "SKT - AX BootCamp" display
+    - Verify NEW badge rendering
+    - Verify drawer transition below 768px
+    - _Requirements: 7.2, 7.3, 7.4, 7.5, 7.6, 7.16_
 
-- [x] 13. TopNavigation 리디자인 (요구사항 7)
-  - [x] 13.1 DarkModeToggle 컴포넌트 구현
-    - `src/components/DarkModeToggle.jsx` 생성
+- [x] 13. TopNavigation Redesign (Requirement 7)
+  - [x] 13.1 DarkModeToggle Component Implementation
+    - Create `src/components/DarkModeToggle.jsx`
     - props: `darkMode`, `onToggle`
-    - 아이콘 기반 토글 버튼 (해/달 아이콘)
-    - TopNavigation utilities 내에 배치 가능한 구조
-    - _요구사항: 7.13, 7.14_
+    - Icon-based toggle button (sun/moon icons)
+    - Structure placeable within TopNavigation utilities
+    - _Requirements: 7.13, 7.14_
 
-  - [x] 13.2 App.jsx TopNavigation 리디자인
-    - TopNavigation을 dark 배경 스타일로 변경
-    - identity에 로고 및 앱 타이틀 배치
-    - utilities에 언어 선택기("한국어"), DarkModeToggle, 사용자 아바타 영역 배치
-    - _요구사항: 7.1_
+  - [x] 13.2 App.jsx TopNavigation Redesign
+    - Change TopNavigation to dark background style
+    - Place logo and app title in identity
+    - Place language selector ("한국어"), DarkModeToggle, and user avatar area in utilities
+    - _Requirements: 7.1_
 
-  - [ ]* 13.3 단위 테스트: TopNavigation 리디자인
-    - Dark TopNavigation이 모든 필수 요소(로고, 아바타, 언어 선택기, 다크 모드 토글) 렌더링 검증
-    - _요구사항: 7.1_
+  - [ ]* 13.3 Unit tests: TopNavigation Redesign
+    - Verify Dark TopNavigation renders all required elements (logo, avatar, language selector, dark mode toggle)
+    - _Requirements: 7.1_
 
-- [x] 14. BreadcrumbNav, TagBadges, AppFooter 구현 (요구사항 7)
-  - [x] 14.1 BreadcrumbNav 컴포넌트 구현
-    - `src/components/BreadcrumbNav.jsx` 생성
-    - Cloudscape `BreadcrumbGroup` 컴포넌트 활용
+- [x] 14. BreadcrumbNav, TagBadges, AppFooter Implementation (Requirement 7)
+  - [x] 14.1 BreadcrumbNav Component Implementation
+    - Create `src/components/BreadcrumbNav.jsx`
+    - Use Cloudscape `BreadcrumbGroup` component
     - props: `activeItemId`, `navigationTree`, `onNavigate`
-    - `buildBreadcrumbPath(tree, targetId)` 함수로 계층 경로 역추적
-    - 포맷: 🏠 > [카테고리] > [현재 페이지]
-    - 각 세그먼트 클릭 시 해당 레벨로 내비게이션
-    - _요구사항: 7.7, 7.8_
+    - `buildBreadcrumbPath(tree, targetId)` function for hierarchical path backtracking
+    - Format: 🏠 > [category] > [current page]
+    - Navigate to corresponding level on each segment click
+    - _Requirements: 7.7, 7.8_
 
-  - [ ]* 14.2 속성 테스트: Breadcrumb path computation
-    - **속성 8: 브레드크럼 경로 계산(Breadcrumb path computation)**
-    - 임의의 트리 항목 선택 → buildBreadcrumbPath → 경로 세그먼트가 실제 조상 경로와 일치 검증
-    - **검증 대상: 요구사항 7.7**
+  - [ ]* 14.2 Property test: Breadcrumb path computation
+    - **Property 8: Breadcrumb path computation**
+    - Select arbitrary tree item → buildBreadcrumbPath → verify path segments match actual ancestor path
+    - **Validates: Requirements 7.7**
 
-  - [x] 14.3 TagBadges 컴포넌트 구현
-    - `src/components/TagBadges.jsx` 생성
-    - props: `tags` (Tag[] 배열)
-    - TAG_COLORS 매핑 기반 카테고리별 색상 렌더링
-    - Cloudscape `SpaceBetween` + styled `<span>` 활용
-    - _요구사항: 7.9, 7.10_
+  - [x] 14.3 TagBadges Component Implementation
+    - Create `src/components/TagBadges.jsx`
+    - props: `tags` (Tag[] array)
+    - Render with category-specific colors based on TAG_COLORS mapping
+    - Use Cloudscape `SpaceBetween` + styled `<span>`
+    - _Requirements: 7.9, 7.10_
 
-  - [ ]* 14.4 속성 테스트: Tag badges correct colors
-    - **속성 9: 태그 뱃지 카테고리별 정확한 색상(Tag badges render with correct category colors)**
-    - 임의의 태그 배열(카테고리 포함) → 렌더링 → 각 뱃지의 색상이 TAG_COLORS 매핑과 일치 검증
-    - **검증 대상: 요구사항 7.9, 7.10**
+  - [ ]* 14.4 Property test: Tag badges correct colors
+    - **Property 9: Tag badges render with correct category colors**
+    - Arbitrary tag array (with categories) → render → verify each badge's color matches TAG_COLORS mapping
+    - **Validates: Requirements 7.9, 7.10**
 
-  - [x] 14.5 AppFooter 컴포넌트 구현
-    - `src/components/AppFooter.jsx` 생성
-    - 고정 콘텐츠: "© 2025 Kiro - Amazon Bedrock AgentCore Learning"
-    - ContentLayout 하단에 배치되는 `<footer>` 엘리먼트
-    - _요구사항: 7.12_
+  - [x] 14.5 AppFooter Component Implementation
+    - Create `src/components/AppFooter.jsx`
+    - Fixed content: "© 2025 Kiro - Amazon Bedrock AgentCore Learning"
+    - A `<footer>` element placed at the bottom of ContentLayout
+    - _Requirements: 7.12_
 
-  - [ ]* 14.6 단위 테스트: BreadcrumbNav, TagBadges, AppFooter
-    - BreadcrumbNav 세그먼트가 올바른 계층 경로를 표시하는지 검증
-    - BreadcrumbNav 세그먼트 클릭 시 onNavigate 호출 검증
-    - TagBadges가 카테고리별 올바른 색상으로 렌더링 검증
-    - AppFooter 저작권 텍스트 표시 검증
-    - _요구사항: 7.7, 7.8, 7.9, 7.10, 7.12_
+  - [ ]* 14.6 Unit tests: BreadcrumbNav, TagBadges, AppFooter
+    - Verify BreadcrumbNav segments display correct hierarchical path
+    - Verify BreadcrumbNav segment click calls onNavigate
+    - Verify TagBadges render with correct colors per category
+    - Verify AppFooter copyright text display
+    - _Requirements: 7.7, 7.8, 7.9, 7.10, 7.12_
 
-- [x] 15. App.jsx 통합 및 최종 검증 (요구사항 7)
-  - [x] 15.1 App.jsx에 새 컴포넌트 통합
-    - 기존 flat SideNavigation을 TreeNavigation으로 교체
-    - BreadcrumbNav를 ContentLayout 상단에 배치
-    - TagBadges를 모듈 타이틀 하단에 배치 (activeItemId로부터 tags 조회)
-    - AppFooter를 ContentLayout 하단에 배치
-    - 기존 PAGES 배열에서 NAVIGATION_TREE로 데이터 소스 전환
-    - contentFile 기반 콘텐츠 로딩 로직 업데이트
-    - _요구사항: 7.2, 7.7, 7.9, 7.11, 7.12_
+- [x] 15. App.jsx Integration and Final Verification (Requirement 7)
+  - [x] 15.1 Integrate New Components in App.jsx
+    - Replace existing flat SideNavigation with TreeNavigation
+    - Place BreadcrumbNav at the top of ContentLayout
+    - Place TagBadges below module title (look up tags from activeItemId)
+    - Place AppFooter at the bottom of ContentLayout
+    - Switch data source from existing PAGES array to NAVIGATION_TREE
+    - Update content loading logic based on contentFile
+    - _Requirements: 7.2, 7.7, 7.9, 7.11, 7.12_
 
-  - [x] 15.2 DarkModeProvider 통합
-    - App 최상위에 `DarkModeProvider`로 감싸기
-    - TopNavigation의 DarkModeToggle과 DarkModeContext 연결
-    - 다크 모드 전환 시 Cloudscape applyMode 호출 확인
-    - _요구사항: 7.13, 7.14, 7.15_
+  - [x] 15.2 DarkModeProvider Integration
+    - Wrap App top-level with `DarkModeProvider`
+    - Connect TopNavigation DarkModeToggle with DarkModeContext
+    - Verify Cloudscape applyMode call on dark mode toggle
+    - _Requirements: 7.13, 7.14, 7.15_
 
-  - [ ]* 15.3 통합 테스트: 전체 통합 검증
-    - 다크 모드 전환 시 applyMode 호출 및 UI 테마 변경 검증
-    - 모바일(≤768px) 뷰포트에서 TreeNavigation 드로어 전환 검증
-    - mermaid 의존성 제거 확인: 소스에 mermaid import 없음 검증
-    - _요구사항: 7.13, 7.16_
+  - [ ]* 15.3 Integration tests: Full Integration Verification
+    - Verify applyMode call and UI theme change on dark mode toggle
+    - Verify TreeNavigation drawer transition in mobile (≤768px) viewport
+    - Verify mermaid dependency removal: no mermaid import in source
+    - _Requirements: 7.13, 7.16_
 
-  - [x] 15.4 최종 체크포인트 - 전체 기능 통합 검증
-    - 모든 테스트가 통과하는지 확인하고, 문제가 발생하면 사용자에게 질문합니다.
-    - 빌드 성공 확인 (`npm run build`)
-    - mermaid 패키지가 node_modules에 없음 확인
+  - [x] 15.4 Final Checkpoint - Full Feature Integration Verification
+    - Verify all tests pass and ask the user if any issues arise.
+    - Verify build succeeds (`npm run build`)
+    - Verify mermaid package is not in node_modules
 
-## 참고 사항
+## Notes
 
-- `*` 표시된 태스크는 선택 사항이며 빠른 MVP를 위해 건너뛸 수 있습니다
-- 각 태스크는 추적성을 위해 특정 요구사항을 참조합니다
-- 체크포인트는 점진적 검증을 보장합니다
-- 속성 테스트(Property test)는 설계 문서의 보편적 정확성 속성을 검증합니다
-- 단위 테스트는 특정 예시와 엣지 케이스를 검증합니다
-- 기존 `react-syntax-highlighter` 의존성이 package.json에 이미 존재하므로 추가 설치 불필요
-- Cloudscape AppLayout이 sticky 헤더/사이드바를 기본 지원하므로 추가 CSS 구현 최소화
-- D2 렌더링은 외부 Kroki 서비스에 의존하므로 네트워크 에러 처리 필수
-- Tasks 10-15는 요구사항 7 (UI 리디자인) 및 8 (Mermaid→D2 전환)을 구현한다
-- Task 10 (Mermaid→D2 전환)은 독립적으로 진행 가능하며, Tasks 11-15 (UI 리디자인)는 DarkModeContext부터 점진적으로 통합한다
-- Mermaid 제거 후 mermaid 코드 블록은 구문 강조된 plain code로 렌더링된다 (레거시 호환)
+- Tasks marked with `*` are optional and can be skipped for a fast MVP
+- Each task references specific requirements for traceability
+- Checkpoints ensure incremental verification
+- Property tests verify universal correctness properties from the design document
+- Unit tests verify specific examples and edge cases
+- The existing `react-syntax-highlighter` dependency already exists in package.json, so no additional installation is needed
+- Cloudscape AppLayout supports sticky header/sidebar by default, minimizing additional CSS implementation
+- D2 rendering depends on the external Kroki service, so network error handling is required
+- Tasks 10-15 implement Requirement 7 (UI Redesign) and Requirement 8 (Mermaid→D2 Transition)
+- Task 10 (Mermaid→D2 Transition) can proceed independently, while Tasks 11-15 (UI Redesign) integrate progressively starting from DarkModeContext
+- After Mermaid removal, mermaid code blocks are rendered as syntax-highlighted plain code (legacy compatibility)
 
-## 태스크 의존성 그래프
+## Task Dependency Graph
 
 ```json
 {

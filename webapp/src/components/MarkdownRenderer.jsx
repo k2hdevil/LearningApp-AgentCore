@@ -68,13 +68,13 @@ function MarkdownRenderer({ content }) {
       const language = match ? match[1] : null;
       const codeText = String(children).replace(/\n$/, '');
 
-      // className에 language- 접두사가 있으면 블록 코드로 판단
-      if (className) {
-        // mermaid를 포함한 모든 언어를 CodeBlockWrapper에 위임
+      // className이 있거나, 여러 줄인 경우 블록 코드로 판단
+      const isBlock = className || codeText.includes('\n');
+      if (isBlock) {
         return <CodeBlockWrapper code={codeText} language={language} />;
       }
 
-      // className이 없으면 인라인 코드 → 기본 스타일 유지
+      // 한 줄이고 className도 없으면 인라인 코드
       return <code {...props}>{children}</code>;
     },
   };

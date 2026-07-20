@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Pre-Commit Security Scanner",
+      "trigger": "PreToolUse",
+      "matcher": "execute_bash",
+      "action": {
+        "type": "agent",
+        "prompt": "Before any git commit is executed, review all staged/changed files for potential security issues. If the command being executed is a \"git commit\" command, perform the following security scan on the diff (use `git diff --cached` or `git diff` output):\n\n1. **API Keys & Tokens**: Look for patterns like `AKIA`, `sk-`, `ghp_`, `xox`, API key patterns, bearer tokens, or any string that resembles an API key or access token.\n\n2. **Private Keys & Credentials**: Check for PEM-encoded private keys (`-----BEGIN.*PRIVATE KEY-----`), SSH keys, or certificate files embedded in source code.\n\n3. **Encryption Keys & Certificates**: Scan for hardcoded encryption keys, AES/RSA key material, or certificate content in code.\n\n4. **Authentication Tokens & Session IDs**: Identify JWT tokens, session identifiers, OAuth tokens, or refresh tokens hardcoded in source.\n\n5. **Passwords & Secrets**: Flag any variables named `password`, `secret`, `passwd`, `credential`, or similar containing literal string values (not references to environment variables or secret managers).\n\n6. **Sensitive IP Addresses**: Detect hardcoded internal/private IP addresses (10.x.x.x, 172.16-31.x.x, 192.168.x.x) that could reveal infrastructure details.\n\n7. **Hardcoded Internal URLs**: Find internal hostnames, staging/dev URLs, or corporate network endpoints that should not be in source code.\n\n8. **Database Connection Strings**: Spot connection strings with embedded credentials (e.g., `mongodb://user:pass@host`, `postgresql://`, `mysql://` with credentials).\n\nFor each issue found:\n- Highlight the specific file, line, and security risk\n- Suggest a secure alternative (environment variables, secrets manager, config files excluded from version control)\n- Recommend the applicable security best practice\n\nIf no issues are found, allow the commit to proceed without comment. Only flag genuine security concerns, not false positives like example/placeholder values in documentation or test fixtures using obviously fake data."
+      }
+    }
+  ]
+}

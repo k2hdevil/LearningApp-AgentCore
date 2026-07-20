@@ -59,7 +59,7 @@ export default function CodeBlockWrapper({ code, language }) {
 
   return (
     <div className={`code-block-wrapper${!isSupported ? ' code-block-wrapper--plain' : ''}`}>
-      <CopyButton text={code} />
+      {isSupported && <CopyButton text={code} />}
       {isSupported ? (
         <SyntaxHighlighter
           language={normalizedLang}

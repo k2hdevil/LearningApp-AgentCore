@@ -18,9 +18,14 @@
 }
 
 .code-block-wrapper--plain pre {
-  background: #1e1e2e;
-  color: #cdd6f4;
+  background: var(--color-background-code-editor-gutter-default-15qdwh, #f3f3f7);
+  color: var(--color-text-body-default-vvtq8u, #16191f);
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
   font-size: 14px;
   line-height: 1.6;
+}
+
+.code-block-wrapper--plain pre code {
+  color: var(--color-text-body-default-vvtq8u, #16191f);
+  background: transparent;
 }

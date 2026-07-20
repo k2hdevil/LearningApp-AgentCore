@@ -5,9 +5,16 @@
   color: var(--color-text-body-default-vvtq8u);
   padding: var(--space-xs, 8px) 0;
   max-width: 100%;
-  overflow-x: hidden;
   overflow-wrap: break-word;
   word-break: break-word;
+}
+
+/* pre/code 블록은 word-break를 해제하여 다이어그램 정렬 보존 */
+.md-content pre {
+  overflow-x: auto;
+  overflow-wrap: normal;
+  word-break: normal;
+  white-space: pre;
 }
 
 .md-content h1 {
@@ -97,14 +104,14 @@
 
 .md-content pre {
   background: var(--color-background-code-editor-gutter-default-15qdwh, #1e1e2e);
-  color: #cdd6f4;
+  color: var(--color-text-body-default-vvtq8u, #16191f);
   padding: var(--space-m, 16px);
   border-radius: var(--border-radius-container, 8px);
   overflow-x: auto;
   font-size: 13px;
   line-height: 1.5;
   margin: var(--space-m, 16px) 0;
-  font-family: var(--font-family-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace);
+  font-family: 'Noto Sans Mono', 'D2Coding', 'NanumGothicCoding', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
 }
@@ -205,9 +212,14 @@
 /* 모바일 반응형 */
 @media (max-width: 768px) {
   .md-content {
-    overflow-x: hidden;
-    word-wrap: break-word;
     overflow-wrap: break-word;
+  }
+
+  .md-content pre {
+    overflow-x: auto;
+    overflow-wrap: normal;
+    word-break: normal;
+    white-space: pre;
   }
 
   .md-content pre {
