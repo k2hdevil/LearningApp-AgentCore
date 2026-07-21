@@ -2,7 +2,7 @@
 
 ## Overview
 
-Implement 8 feature improvements for the AgentCore learning app built with React 18 + Vite 6. The implementation order is (1) foundational infrastructure (test framework, Context), (2) core features (progress tracking, code blocks), (3) external integration (D2 rendering), (4) UI/layout improvements, (5) Mermaid→D2 transition and mermaid dependency removal, (6) UI redesign (dark mode, TreeNavigation, breadcrumbs, tag badges, footer), with incremental integration with existing code at each stage.
+Implement feature improvements for the AgentCore learning app built with React 18 + Vite 6. The implementation order is (1) foundational infrastructure (test framework, Context), (2) core features (progress tracking, code blocks), (3) UI/layout improvements, (4) mermaid dependency removal, (5) UI redesign (dark mode, TreeNavigation, breadcrumbs, tag badges, footer), with incremental integration with existing code at each stage.
 
 ## Tasks
 
@@ -80,7 +80,7 @@ Implement 8 feature improvements for the AgentCore learning app built with React
   - [x] 4.2 CodeBlockWrapper Component Implementation
     - Create `src/components/CodeBlockWrapper.jsx`
     - props: `code`, `language`
-    - If language is `mermaid` or `d2` → delegate to diagram renderer (no syntax highlighting, no copy button)
+    - If language is `mermaid` → render as plain text (no diagram rendering)
     - If language is a supported language → apply `react-syntax-highlighter` Prism + dark theme
     - If language is not provided → render as plain text
     - Include CopyButton in all non-diagram code blocks
@@ -103,28 +103,6 @@ Implement 8 feature improvements for the AgentCore learning app built with React
     - Verify mermaid language code blocks are not syntax highlighted
     - Verify plain text rendering when language is not specified
     - _Requirements: 3.2, 3.3, 3.4, 4.4, 4.5_
-
-- [x] 5. D2Renderer Implementation
-  - [x] 5.1 D2Renderer Component Implementation
-    - Create `src/components/D2Renderer.jsx`
-    - Kroki API integration: `POST https://kroki.io/d2/svg`, Content-Type: `text/plain`, body: raw D2 text
-    - Loading state: display spinner or placeholder
-    - On success: render SVG within Diagram_Container (light background, 16px padding, 8px border-radius, center-aligned, max-width 100%)
-    - On error: retain original code block + left 4px `#e74c3c` border
-    - timeout: 10 seconds
-    - Allow horizontal scrolling on viewports ≤768px
-    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7_
-
-  - [x] 5.2 Property test: D2 encoding round-trip
-    - **Property 6: D2 encoding round-trip**
-    - Arbitrary non-empty D2 text → POST body encoding → verify identity with original (since POST method, encoding is identity but verify trim/whitespace handling)
-    - **Validates: Requirements 6.2**
-
-  - [x] 5.3 Unit tests: D2Renderer
-    - Verify SVG insertion on successful Kroki service response (fetch mock)
-    - Verify original code block + error border on Kroki service error
-    - Verify mermaid code blocks are not processed by D2Renderer
-    - _Requirements: 6.1, 6.7, 6.8_
 
 - [x] 6. MarkdownRenderer Integration Refactoring
   - [x] 6.1 Apply components prop-based code block routing in MarkdownRenderer

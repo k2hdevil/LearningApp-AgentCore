@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This document defines the feature improvements to enhance the user experience of the Amazon Bedrock AgentCore learning app. The current app functions as a basic Markdown content viewer, and through these improvements, we will implement (1) visual enhancements reflecting the latest UI trends, (2) learning progress tracking functionality, (3) code block copy functionality, (4) D2 diagram rendering support, and (5) a modern learning platform experience through screenshot-based UI redesign.
+This document defines the feature improvements to enhance the user experience of the Amazon Bedrock AgentCore learning app. The current app functions as a basic Markdown content viewer, and through these improvements, we will implement (1) visual enhancements reflecting the latest UI trends, (2) learning progress tracking functionality, (3) code block copy functionality, and (4) a modern learning platform experience through screenshot-based UI redesign.
 
 ## Glossary
 
@@ -15,10 +15,6 @@ This document defines the feature improvements to enhance the user experience of
 - **Completion_Status**: The learning completion state of an individual module (completed/incomplete)
 - **Local_Storage**: A client-side data store utilizing the browser's localStorage API
 - **Syntax_Highlighter**: A feature that applies language-specific syntax highlighting to code blocks
-- **D2_Renderer**: A functional component that detects ```d2 code blocks within Markdown content and renders them as D2 diagram images
-- **D2_Code_Block**: A code block in Markdown content with the language identifier set to "d2" (`<pre><code class="language-d2">` element)
-- **Diagram_Container**: A UI wrapper element that surrounds rendered diagrams, applying consistent styling such as background color, padding, and rounded corners
-- **Kroki_Service**: An external rendering service endpoint that converts D2 text into SVG images (https://kroki.io)
 - **Sticky_Header**: A TopNavigation area that remains fixed at the top of the screen even during scrolling
 - **Sticky_Sidebar**: A SideNavigation area that remains fixed on the left side of the screen and scrolls independently during scrolling
 - **Content_Area**: The main area where module content is rendered, scrolling independently from the Sidebar
@@ -102,22 +98,6 @@ This document defines the feature improvements to enhance the user experience of
 6. WHEN the Content_Area contains content taller than the Viewport, THE Learning_App SHALL allow smooth vertical scrolling without layout breaks or repaint artifacts
 7. WHILE Viewport width is 768px or less, THE Content_Area SHALL occupy the full width of the Viewport and scroll independently without being blocked by the Sidebar
 8. THE Learning_App SHALL prevent body-level scroll lock when the Sidebar drawer is open in mobile viewports
-
-### Requirement 6: D2 Diagram Rendering
-
-**User Story:** As a learner, I want D2 code blocks within Markdown content to be rendered as visual diagrams, so that I can understand learning material through intuitive visuals instead of text-based diagram code.
-
-#### Acceptance Criteria
-
-1. WHEN a D2_Code_Block is detected in Markdown content, THE D2_Renderer SHALL convert the D2 text into a rendered diagram image (SVG format)
-2. THE D2_Renderer SHALL encode the D2 text and request rendering from the Kroki_Service
-3. THE Diagram_Container SHALL wrap the rendered D2 diagram with a light background color, 16px padding, and 8px border radius, consistent with the existing Mermaid diagram styling
-4. THE Diagram_Container SHALL horizontally center the rendered diagram within the Content_Area
-5. THE Diagram_Container SHALL apply a maximum width of 100% and scale diagrams proportionally to prevent horizontal overflow
-6. WHILE Viewport width is 768px or less, THE Diagram_Container SHALL allow horizontal scrolling for diagrams that exceed the available width
-7. IF the Kroki_Service is unreachable or returns an error, THEN THE D2_Renderer SHALL retain the original code block and display a 4px left border in an error color
-8. THE D2_Renderer SHALL NOT interfere with existing Mermaid diagram rendering of code blocks with the "mermaid" language identifier
-9. THE Syntax_Highlighter SHALL NOT apply syntax highlighting to D2_Code_Block elements that are pending or have completed diagram rendering
 
 ### Requirement 7: UI Redesign (Modern Learning Platform)
 

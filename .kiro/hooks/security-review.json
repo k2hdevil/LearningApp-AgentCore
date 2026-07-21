@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Security Review on File Changes",
+      "trigger": "PreToolUse",
+      "description": "Reviews all file write operations for hardcoded credentials, API keys, tokens, private keys, passwords, internal URLs, and other sensitive data before they are written to disk.",
+      "matcher": "fs_write|str_replace|fs_append",
+      "action": {
+        "type": "agent",
+        "prompt": "Before applying this file change, review the content for potential security issues:\n\n1. Look for API keys, tokens, or credentials in source code (e.g., AWS keys starting with AKIA, GitHub tokens starting with ghp_, etc.)\n2. Check for private keys or sensitive certificates (e.g., -----BEGIN RSA PRIVATE KEY-----, -----BEGIN CERTIFICATE-----)\n3. Scan for encryption keys or hardcoded secrets (e.g., AES keys, JWT secrets)\n4. Identify authentication tokens or session IDs that should not be hardcoded\n5. Flag passwords or secrets in configuration files (e.g., password=, secret_key=, DB_PASSWORD)\n6. Detect IP addresses that may contain sensitive infrastructure data (e.g., internal IPs like 10.x.x.x, 172.16.x.x)\n7. Find hardcoded internal URLs (e.g., internal service endpoints, staging/production URLs with credentials)\n8. Spot database connection strings with embedded credentials (e.g., mongodb://user:pass@host, postgresql://...)\n\nFor each issue found:\n1. Highlight the specific security risk and explain why it is dangerous\n2. Suggest a secure alternative approach (e.g., environment variables, secrets manager, parameter store)\n3. Recommend security best practices for handling that type of sensitive data\n\nIf no security issues are found, allow the operation to proceed without comment."
+      }
+    }
+  ]
+}

@@ -1,4 +1,6 @@
 import BreadcrumbGroup from '@cloudscape-design/components/breadcrumb-group';
+import { useLocale } from '../contexts/LocaleContext.jsx';
+import { getTranslations } from '../data/translations.js';
 
 /**
  * 트리에서 targetId까지의 경로를 역추적하여 브레드크럼 배열을 생성한다.
@@ -32,6 +34,9 @@ export function buildBreadcrumbPath(tree, targetId) {
  * @param {function} props.onNavigate - 브레드크럼 세그먼트 클릭 시 콜백 (itemId를 전달)
  */
 export default function BreadcrumbNav({ activeItemId, navigationTree, onNavigate }) {
+  const { locale } = useLocale();
+  const t = getTranslations(locale);
+
   // 브레드크럼 경로 계산
   const breadcrumbPath = buildBreadcrumbPath(navigationTree, activeItemId);
 
@@ -49,7 +54,7 @@ export default function BreadcrumbNav({ activeItemId, navigationTree, onNavigate
   return (
     <BreadcrumbGroup
       items={items}
-      ariaLabel="브레드크럼 내비게이션"
+      ariaLabel={t.breadcrumbLabel}
       onFollow={handleFollow}
     />
   );

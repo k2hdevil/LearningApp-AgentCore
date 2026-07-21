@@ -10,9 +10,7 @@ Key improvement areas:
 3. **Code Block Copy**: Hover-triggered copy button and clipboard API integration
 4. **Code Syntax Highlighting**: Language-specific syntax highlighting based on react-syntax-highlighter/Prism
 5. **Layout Stability**: Sticky header/sidebar, independent scroll areas
-6. **D2 Diagram Rendering**: D2 code block SVG conversion via Kroki service
-7. **UI Redesign**: Hierarchical navigation, dark mode, and breadcrumbs in a modern learning platform style
-8. **Mermaid → D2 Transition**: Removal of Mermaid dependency and unification to D2 as the single diagram engine
+6. **UI Redesign**: Hierarchical navigation, dark mode, and breadcrumbs in a modern learning platform style
 
 ## Architecture
 
@@ -30,7 +28,6 @@ graph TD
         D --> E[MarkdownRenderer]
         E --> F[SyntaxHighlighter]
         E --> G[CodeBlockWrapper + CopyButton]
-        E --> I[D2Renderer]
         C --> J[ProgressSummary]
         A --> K[ProgressContext Provider]
         K --> L[useProgress Hook]
@@ -40,10 +37,6 @@ graph TD
         N2 --> M
         D --> D3[AppFooter]
     end
-    
-    subgraph External
-        I --> N[Kroki Service API]
-    end
 ```
 
 ### Design Principles
@@ -52,7 +45,6 @@ graph TD
 - **Component separation**: Separate rendering logic within MarkdownRenderer into dedicated components
 - **Context API-based state management**: Share progress tracking and dark mode state via React Context to avoid prop drilling
 - **Progressive Enhancement**: Provide fallbacks when clipboard API, localStorage, etc. are unavailable
-- **Single diagram engine**: Remove Mermaid and unify to D2 + Kroki to reduce bundle size and simplify maintenance
 - **Hierarchical navigation**: Convert flat list to tree structure to improve content organization
 
 ## Components and Interfaces
@@ -136,7 +128,6 @@ A wrapper component that integrates the copy button and syntax highlighting arou
 ```
 
 **Responsibilities:**
-- If `language` is `d2`: Delegate to D2Renderer (no syntax highlighting applied)
 - If `language` is `mermaid`: Apply regular syntax highlighting (legacy compatibility — no diagram rendering)
 - If `language` is a supported language: Apply syntax highlighting with `react-syntax-highlighter` Prism
 - If `language` is not provided: Render as plain text
@@ -160,33 +151,7 @@ A copy button displayed in the upper-right corner of code blocks.
 2. On failure, fallback: Create temporary `<textarea>` → Execute `document.execCommand('copy')`
 3. On success: Change button state to "Copied" → Restore original state after 2 seconds
 
-### 6. D2Renderer (New)
-
-A component that renders D2 code blocks as SVG diagrams via the Kroki service.
-
-```jsx
-// src/components/D2Renderer.jsx
-
-/**
- * @props
- * - code: string - D2 diagram source text
- */
-```
-
-**Kroki API integration:**
-- Endpoint: `https://kroki.io/d2/svg`
-- Method: `POST`
-- Content-Type: `text/plain`
-- Request body: Raw D2 text
-- Response: SVG string
-
-Reason for choosing the POST method: The GET method requires deflate + base64url encoding which needs additional libraries like pako in the browser, but POST can send raw text directly, making implementation simpler and reducing dependencies.
-
-**Error handling:**
-- On Kroki service response failure: Retain original code block + display 4px red left border
-- Same UX as existing mermaid error handling pattern
-
-### 7. MarkdownRenderer (Existing - Modified)
+### 6. MarkdownRenderer (Existing - Modified)
 
 Customizes `code` elements using ReactMarkdown's `components` prop.
 
@@ -207,8 +172,7 @@ Customizes `code` elements using ReactMarkdown's `components` prop.
 **Changes:**
 - Add `code` component custom renderer
 - Convert Mermaid post-processing logic from `useEffect` → component-based
-- Add D2 code block detection and D2Renderer delegation
-- Remove MermaidRenderer component (Mermaid dependency fully removed per Requirement 8)
+- Remove MermaidRenderer component (Mermaid dependency fully removed)
 - Change `language === 'mermaid'` branch to process as regular code block (legacy mermaid blocks render as syntax-highlighted plain code)
 
 ### 8. TreeNavigation (New — Requirement 7)
@@ -388,18 +352,6 @@ Uses the `id` field from the existing PAGES array as module identifiers:
 - `M07-NewFeatures_Summary`
 - `L01-AgentCore_Lab`
 
-### D2 Rendering State
-
-```typescript
-type D2RenderState = 'loading' | 'success' | 'error';
-
-interface D2RenderResult {
-  state: D2RenderState;
-  svg: string | null;
-  error: string | null;
-}
-```
-
 ### NavigationTree (New — Requirement 7)
 
 A hierarchical navigation data structure that replaces the existing flat PAGES array.
@@ -483,55 +435,6 @@ type ThemeMode = 'dark' | 'light';
 // Value: "dark" | "light"
 ```
 
-### Mermaid → D2 Conversion Mapping (Requirement 8)
-
-Syntax mapping for converting 5 Mermaid diagrams in M02-Runtime_Summary.md to D2:
-
-| Mermaid Syntax | D2 Syntax |
-|-------------|---------|
-| `graph TD` / `graph TB` | Default vertical direction (D2 default) |
-| `graph LR` | `direction: right` |
-| `A --> B` | `A -> B` |
-| `A -->|label| B` | `A -> B: label` |
-| `A --- B` | `A -- B` (connection line, no arrow) |
-| `subgraph Title` ... `end` | `Title: { ... }` (nested container) |
-| `stateDiagram-v2` | Standard D2 node/edge syntax |
-| `[text]` (rectangle node) | `node: { label: "text" }` or `node: "text"` |
-| `(text)` (rounded rectangle) | `node: "text" { shape: rectangle }` |
-| `{text}` (diamond) | `node: "text" { shape: diamond }` |
-| `:::className` | `node.style: { ... }` |
-
-**Target files for conversion:**
-- `Contents/M02-Runtime_Summary.md`
-- `webapp/public/content/M02-Runtime_Summary.md`
-
-**Removal targets:**
-- Delete `MermaidRenderer` component definition in `MarkdownRenderer.jsx`
-- Delete `import mermaid from 'mermaid'` and `mermaid.initialize(...)` calls
-- Remove `"mermaid": "^11.4.0"` dependency from `package.json`
-- Delete `node_modules/mermaid` (re-run npm install)
-
-**Code routing after MarkdownRenderer changes:**
-```jsx
-code({ className, children, node, ...props }) {
-  const match = /language-(\w+)/.exec(className || '');
-  const language = match ? match[1] : null;
-  const codeText = String(children).replace(/\n$/, '');
-
-  if (className) {
-    // D2 → delegate to D2Renderer
-    if (language === 'd2') {
-      return <D2Renderer code={codeText} />;
-    }
-    // mermaid → legacy block, render as regular code (not a diagram)
-    // All other languages → CodeBlockWrapper (syntax highlighting + copy button)
-    return <CodeBlockWrapper code={codeText} language={language} />;
-  }
-
-  return <code {...props}>{children}</code>;
-}
-```
-
 ## Correctness Properties
 
 *A property refers to a characteristic or behavior that must be true in all valid executions of the system. Essentially, it is a formal statement about what the system should do. Properties serve as a bridge between human-readable specifications and mechanically verifiable correctness guarantees.*
@@ -568,12 +471,6 @@ For *any* string representing code block content, invoking the copy operation SH
 For *any* supported language identifier and non-empty code string, the syntax highlighter SHALL produce a rendered output containing at least one styled token element (a span with color/class) confirming that language-specific parsing was applied.
 
 **Validates: Requirements 4.1**
-
-### Property 6: D2 encoding round-trip
-
-For *any* non-empty D2 text string, the encoding function used to prepare a Kroki API request SHALL produce output that, when decoded, yields the original D2 text string unchanged.
-
-**Validates: Requirements 6.2**
 
 ### Property 7: Dark mode persistence round-trip
 
@@ -623,17 +520,9 @@ For *any* code block with a "mermaid" language identifier, the MarkdownRenderer 
 | execCommand fails | Visual error feedback to user (button shake, etc.) |
 | Non-HTTPS environment | Fallback method applied automatically |
 
-### Kroki Service Errors
-
-| Scenario | Handling Approach |
-|---------|----------|
-| Network request failure (timeout, DNS, etc.) | Retain original code block + 4px `#e74c3c` left border |
-| HTTP 4xx/5xx response | Retain original code block + error left border |
-| Response is not valid SVG | Retain original code block + error border |
-
 ### General Error Strategy
 
-- Set timeout on all external service calls (Kroki: 10 seconds)
+- Set timeout on all external service calls (10 seconds)
 - Ensure graceful degradation without app crashes for users
 - Support developer debugging via console.error
 
@@ -671,7 +560,6 @@ Each property test runs a minimum of 100 iterations, with Property references fr
 | Property 3 | Set 0~9 arbitrary modules as completed → verify completedCount and percentage calculation results | Feature: learning-app-enhancements, Property 3: Progress calculation correctness |
 | Property 4 | Pass arbitrary string (including Unicode) to copy function → verify identity with clipboard contents | Feature: learning-app-enhancements, Property 4: Copy preserves code content |
 | Property 5 | Select arbitrary supported language + arbitrary code string → verify styled tokens exist in highlighter output | Feature: learning-app-enhancements, Property 5: Syntax highlighting tokenization |
-| Property 6 | Arbitrary D2 text → encode → decode → verify identity with original | Feature: learning-app-enhancements, Property 6: D2 encoding round-trip |
 | Property 7 | Arbitrary mode value ("dark"/"light") → save to localStorage → read → verify same mode restoration | Feature: learning-app-enhancements, Property 7: Dark mode persistence round-trip |
 | Property 8 | Select arbitrary tree item → buildBreadcrumbPath → verify path segments match actual ancestor path | Feature: learning-app-enhancements, Property 8: Breadcrumb path computation |
 | Property 9 | Arbitrary tag array (with categories) → render → verify each badge's color matches TAG_COLORS mapping | Feature: learning-app-enhancements, Property 9: Tag badges render with correct category colors |
@@ -699,7 +587,6 @@ Each property test runs a minimum of 100 iterations, with Property references fr
 
 - AppLayout sticky behavior verification (scroll event simulation)
 - Progress state persistence during module transitions verification
-- D2 rendering → Kroki mock server response → SVG insertion verification
 - Dark mode toggle triggers Cloudscape `applyMode` call and full UI theme change verification
 - Mermaid dependency removal confirmation: verify no `import mermaid` or `require('mermaid')` statements in source
 

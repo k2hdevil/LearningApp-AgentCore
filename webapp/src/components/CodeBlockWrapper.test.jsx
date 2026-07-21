@@ -3,11 +3,6 @@ import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import CodeBlockWrapper from './CodeBlockWrapper';
 
-// D2Renderer는 fetch를 사용하므로 mock
-vi.mock('./D2Renderer.jsx', () => ({
-  default: ({ code }) => <div data-testid="d2-renderer">{code}</div>,
-}));
-
 describe('CodeBlockWrapper', () => {
   beforeEach(() => {
     // clipboard mock for CopyButton inside CodeBlockWrapper
@@ -30,14 +25,6 @@ describe('CodeBlockWrapper', () => {
     expect(preElement).toBeInTheDocument();
     const codeElement = container.querySelector('pre > code');
     expect(codeElement).toHaveTextContent('graph TD; A-->B;');
-  });
-
-  it('language="d2"일 때 D2Renderer를 렌더링한다', () => {
-    render(<CodeBlockWrapper code="x -> y" language="d2" />);
-
-    const d2Element = screen.getByTestId('d2-renderer');
-    expect(d2Element).toBeInTheDocument();
-    expect(d2Element).toHaveTextContent('x -> y');
   });
 
   it('language="python"일 때 구문 강조된 출력을 렌더링한다 (styled span 존재)', () => {
