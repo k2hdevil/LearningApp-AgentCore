@@ -102,12 +102,14 @@ function AppContent() {
       text: t.languageToggleLabel,
       ariaLabel: t.languageToggleLabel,
       onClick: toggleLocale,
+      disableUtilityCollapse: true,
     },
     {
       type: 'button',
       text: isDarkMode ? '☀️' : '🌙',
       ariaLabel: isDarkMode ? t.lightModeToggle : t.darkModeToggle,
       onClick: toggleDarkMode,
+      disableUtilityCollapse: true,
     },
   ];
 
