@@ -1,7 +1,6 @@
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import CopyButton from './CopyButton.jsx';
-import D2Renderer from './D2Renderer.jsx';
 import './CodeBlockWrapper.css';
 
 /**
@@ -34,13 +33,9 @@ const SUPPORTED_LANGUAGES = [
   'markdown',
 ];
 
-/** 다이어그램 언어 식별자 */
-const DIAGRAM_LANGUAGES = ['d2'];
-
 /**
  * CodeBlockWrapper - 코드 블록 래퍼 컴포넌트
  *
- * 다이어그램 언어(d2)는 해당 렌더러에 위임하고,
  * 일반 코드는 구문 강조 + 복사 버튼을 제공한다.
  *
  * @param {{ code: string, language: string|undefined }} props
@@ -48,10 +43,6 @@ const DIAGRAM_LANGUAGES = ['d2'];
  * - language: 언어 식별자 (optional)
  */
 export default function CodeBlockWrapper({ code, language }) {
-  // d2 코드 블록은 D2Renderer에 위임
-  if (language === 'd2') {
-    return <D2Renderer code={code} />;
-  }
 
   // 지원 언어가 있는 경우 → 구문 강조 적용
   const normalizedLang = language ? language.toLowerCase() : null;

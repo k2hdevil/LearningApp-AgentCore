@@ -72,37 +72,6 @@ describe('MarkdownRenderer Integration', () => {
     });
   });
 
-  describe('D2 code block delegates to D2Renderer', () => {
-    it('renders d2 code block via D2Renderer using Kroki API', async () => {
-      const svgContent = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="50" height="50"/></svg>';
-
-      mockFetch.mockResolvedValue({
-        ok: true,
-        text: () => Promise.resolve(svgContent),
-      });
-
-      const markdown = '```d2\nx -> y\n```';
-
-      render(<MarkdownRenderer content={markdown} />);
-
-      await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith(
-          'https://kroki.io/d2/svg',
-          expect.objectContaining({
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: 'x -> y',
-          })
-        );
-      });
-
-      await waitFor(() => {
-        const container = document.querySelector('.d2-diagram-container');
-        expect(container).toBeInTheDocument();
-      });
-    });
-  });
-
   describe('Python code block has syntax highlighting + copy button', () => {
     it('renders python code with styled spans and copy button', async () => {
       const markdown = '```python\ndef hello():\n    pass\n```';
