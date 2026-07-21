@@ -91,6 +91,7 @@ function AppContent() {
       text: isDarkMode ? '☀️' : '🌙',
       ariaLabel: isDarkMode ? '라이트 모드로 전환' : '다크 모드로 전환',
       onClick: toggleDarkMode,
+      disableUtilityCollapse: true,
     },
   ];
 
