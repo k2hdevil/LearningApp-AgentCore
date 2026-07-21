@@ -108,6 +108,7 @@ function AppContent() {
       text: isDarkMode ? '☀️' : '🌙',
       ariaLabel: isDarkMode ? t.lightModeToggle : t.darkModeToggle,
       onClick: toggleDarkMode,
+      disableUtilityCollapse: true,
     },
   ];
 
