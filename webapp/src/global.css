@@ -40,3 +40,23 @@ body {
     max-width: calc(100vw - 32px);
   }
 }
+
+/* === 모바일 TopNavigation: 제목 및 유틸리티 버튼 표시 유지 === */
+
+@media (max-width: 768px) {
+  /* Cloudscape TopNavigation이 모바일에서 identity title을 숨기지 않도록 */
+  #top-nav [class*="identity"] [class*="title"] {
+    display: inline-block !important;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+  }
+
+  /* utility 버튼 영역이 축소되지 않도록 */
+  #top-nav [class*="utilities"] {
+    display: flex !important;
+    flex-shrink: 0;
+  }
+}
